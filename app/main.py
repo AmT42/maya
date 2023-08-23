@@ -74,7 +74,7 @@ def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
 
 
 @app.get("/users/me")
-def raed_users_me(current_user: User = Depends(get_current_user)):
+def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 @app.post("/upload")

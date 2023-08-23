@@ -7,7 +7,9 @@ import datetime
 Base = declarative_base()
 
 class User(Base):
-    id = Column(String, primary_key = True, index = True)
+    __tablename__ = "user"
+    
+    id = Column(Integer, primary_key = True, index = True)
     username = Column(String, unique = True, index = True)
     email = Column(String, unique = True, index = True)
     hashed_password = Column(String)
@@ -18,7 +20,7 @@ class User(Base):
 class Document(Base):
     __tablename__ = "documents"
     
-    id = Column(String, primary_key = True, index = True)
+    id = Column(Integer, primary_key = True, index = True)
     file_path = Column(String)
     doctype = Column(String)
     date = Column(DateTime)
