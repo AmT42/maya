@@ -4,3 +4,4 @@ sqlalchemy
 psycopg2
 alembic
 bcrypt
+fastapi-users
