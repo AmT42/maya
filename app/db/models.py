@@ -1,13 +1,19 @@
-from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTable
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 import datetime
+
 
 Base = declarative_base()
 
-class User(Base, SQLAlchemyBaseUserTable):
-    id = Column(Integer, primary_key=True, index=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.datetime.utcnow)
+class User(Base):
+    id = Column(String, primary_key = True, index = True)
+    username = Column(String, unique = True, index = True)
+    email = Column(String, unique = True, index = True)
+    hashed_password = Column(String)
+    is_active = Column(Boolean, default = True)
+    created_at = Column(DateTime, default = datetime.datetime.utcnow)
+    refresh_token = Column(String, index = True, nullable = True)
 
 class Document(Base):
     __tablename__ = "documents"
