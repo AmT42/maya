@@ -36,7 +36,7 @@ def register_user(username: str, email: str, password: str, db: Session = Depend
     
 
     hashed_password = hash_password(password)
-    new_user = User(username=username, email = email, hash_password = hashed_password)
+    new_user = User(username=username, email = email, hashed_password = hashed_password)
     db.add(new_user)
     db.commit()
     return {"message" : "User created successfully!"}
