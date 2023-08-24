@@ -11,7 +11,7 @@ SECRET_KEY = config("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCES_TOKEN_EXPIRE_MINUTES = 120
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl = "login")
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl = "login")
 
 logging.basicConfig(level = logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,12 +36,15 @@ def create_access_token(data: dict):
 
 def verify_token(token: str):
     try: 
+        logging.INFO(f"try to verify token")
         payload = jwt.decode(token, SECRET_KEY, algorithms = {ALGORITHM})
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code = 401, detail = "Token has expired")
     except jwt.JWTError:
         raise HTTPException(status_code = 401, detail = "Invalid token")
+    except Exception:
+        raise Exception(detail = "vas te faire connard")
     
 def create_refresh_token(data: dict):
     return secrets.token_urlsafe(32)
