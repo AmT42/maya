@@ -17,6 +17,9 @@ class User(Base):
     created_at = Column(DateTime, default = datetime.datetime.utcnow)
     refresh_token = Column(String, index = True, nullable = True)
 
+    # relationship with document
+    document = relationship("Document", back_populates = "owner")
+
 class Document(Base):
     __tablename__ = "documents"
     
@@ -26,6 +29,12 @@ class Document(Base):
     date = Column(DateTime)
     entity_or_reason = Column(String)
     additional_info = Column(String)
+
+    # Foreign key to User
+    user_id = Column(Integer, ForeignKey("user.id"))
+
+    # Relationship with User 
+    owner = relationship("User", back_populates = "document")
 
 
 

@@ -2,3 +2,4 @@
 app/core/google-credentials.json
 *.pyc
 __pycache__/
+notebooks/

@@ -5,3 +5,5 @@ psycopg2
 alembic
 bcrypt
 fastapi-users
+slowapi
+notebooks

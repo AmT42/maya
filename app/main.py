@@ -1,17 +1,50 @@
-from fastapi import FastAPI, Depends, HTTPException, Form
+from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request
 from sqlalchemy.orm import Session
 from db.session import SessionLocal
 from db.models import Document, User
 from utils.security import verify_password, hash_password, create_refresh_token, create_access_token, verify_token
 from fastapi.security import OAuth2PasswordBearer
-from api.v1.schemas import LoginRequest
+
+from services.chatgpt import ChatGpt
+from services.ocr import call_ocr
+
+from langchain.docstore.document import Document as ChromaDocument
+from langchain.vectorstores import Chroma 
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings.openai import OpenAIEmbeddings
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+import json
+import os 
+import shutil 
+from uuid import uuid4
+from google.cloud import vision
+from decouple import config
+
 import logging
+
 logger = logging.getLogger(__name__) 
 
 app = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config("GOOGLE_CREDENTIALS_PATH")
+os.environ["OPENAI_API_KEY"] = config("OPENAI_API_KEY")
 
+TEMP_STORAGE = "temp_storage"
+text_splitter = CharacterTextSplitter(chunk_size = 1000, chunk_overlap = 100)
+chroma_db = Chroma(collection_name = "smart_maya", embedding_function = OpenAIEmbeddings())
+chroma_db_raw = Chroma(collection_name = "smart_maya_raw", embedding_function = OpenAIEmbeddings())
+chatgpt = ChatGpt(None, None, None, None, None)
+client = vision.ImageAnnotatorClient()
 
+limiter = Limiter(key_func = get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+## later
+## from app.api.v1.routers import router as api_router
+## app.include_router(api_router, prefix = "api/v1")
 # Dependency 
 def get_db():
     db = SessionLocal()
@@ -63,25 +96,6 @@ def login(username:str = Form(...), password: str = Form(), db: Session = Depend
 
     #return token for the user
     return {"access_token": access_token, "refresh_token": refresh_token}
-# @app.post("/login")
-# def login(request: LoginRequest, db: Session = Depends(get_db)):
-#     logger.info("LOGS")
-#     user = db.query(User).filter(User.username == request.username).first()
-#     if not user: 
-#         raise HTTPException(status_code = 400, detail="Invalid username or password")
-    
-#     if not verify_password(request.password, user.hashed_password):
-#         raise HTTPException(status_code = 400, detail = "Invalid username or password")
-    
-#     access_token = create_access_token({"sub": user.username})
-#     refresh_token = create_refresh_token({"sub": user.username})
-
-#     # Store refresh token in the database
-#     user.refresh_token = refresh_token
-#     db.commit()
-
-#     #return token for the user
-#     return {"access_token": access_token, "refresh_token": refresh_token}
 
 @app.post("/token/refresh")
 def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
@@ -100,8 +114,72 @@ def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 @app.post("/upload")
-def upload_document(db: Session = Depends(get_db)):
-    pass
+@limiter.limit("5/minute")
+def upload_document(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db),
+                     User = Depends(get_current_user)):
+    try: 
+        content_type = request.headers.get("Content-Type")
+
+        # Generate a unique ID for the document
+        doc_id = uuid4()
+
+        # Determine if we received an image or text
+        if content_type.startswith("image/"):
+            file_path =  f'{TEMP_STORAGE}'/{doc_id}.jpg
+            with open(file_path, "wb") as f:   ## add size checking condition 
+                f.write(file.file.read())  
+            ocr_text = call_ocr(file_path, client = client)
+        else:
+            ocr_text = file.file.read().decode()
+
+        file.file.close()
+
+        extracted_info = chatgpt.call_gpt(text = ocr_text)
+
+        # Store the extracted information in the database
+        new_document = Document(
+            id = doc_id,
+            file_path = file_path if content_type.startswith("images") else None, 
+            doctype = extracted_info["doctype"],
+            date = extracted_info["date"],
+            entity_or_reason = extracted_info["entite_ou_raison"],
+            additional_info=json.dumps(extracted_info['info_supplementaires']),
+            user_id = User.id
+        )
+        db.add(new_document)
+        db.commit()
+        
+        # From text to Chroma.Document object
+        raw_docs = [ChromaDocument(page_content = ocr_text, metadata = {"type":"ocr", "id":doc_id})]
+
+        # Split document into chunks
+        docs = text_splitter.split_documents(raw_docs)
+
+        # Get unique Id per chunk
+        ids = [f"{doc_id}_{i}_ocr" for i in range(len(raw_docs))]
+
+        # Add to the chroma vdb with its corresponding ids
+        chroma_db_raw.add_documents(docs, id = ids)
+
+        return {
+            "doc_id" : doc_id,
+            "extracted_info" : extracted_info
+        }
+    
+    except ValueError as ve:
+        logger.error(f'Value error: {ve}')
+        db.rollback()
+        raise HTTPException(status_code = 400, detail = str(ve))
+    except IOError as ioe:
+        logger.error(f"I/O error {ioe}")
+        db.rollback()
+        raise HTTPException(status_code = 500, defail = "File processing error")
+    except Exception as e :
+        logger.error(f"Unexpected error: {e}")
+        db.rollback()
+        raise HTTPException(status_code = 500, detail = "An unexpected error occurred")
+    finally:
+        db.close()
 
 @app.post("/validate")
 def validate_information(db: Session = Depends(get_db)):
