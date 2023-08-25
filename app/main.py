@@ -118,14 +118,14 @@ def read_users_me(current_user: User = Depends(get_current_user)):
 def upload_document(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db),
                      User = Depends(get_current_user)):
     try: 
-        content_type = request.headers.get("Content-Type")
+        content_type = file.content_type
 
         # Generate a unique ID for the document
         doc_id = uuid4()
-
+        logger.info(f'CONTENT TYPE {content_type}')
         # Determine if we received an image or text
         if content_type.startswith("image/"):
-            file_path =  f'{TEMP_STORAGE}'/{doc_id}.jpg
+            file_path =  f'storage/{TEMP_STORAGE}/{doc_id}.jpg'
             with open(file_path, "wb") as f:   ## add size checking condition 
                 f.write(file.file.read())  
             ocr_text = call_ocr(file_path, client = client)
@@ -149,6 +149,7 @@ def upload_document(request: Request, file: UploadFile = File(...), db: Session 
         db.add(new_document)
         db.commit()
         
+        doc_id = str(doc_id)
         # From text to Chroma.Document object
         raw_docs = [ChromaDocument(page_content = ocr_text, metadata = {"type":"ocr", "id":doc_id})]
 
