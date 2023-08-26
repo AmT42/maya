@@ -3,3 +3,7 @@ app/core/google-credentials.json
 *.pyc
 __pycache__/
 notebooks/
+storage/
+*.jpg
+app/alembic.ini
+*.mako
