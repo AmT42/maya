@@ -36,15 +36,15 @@ def create_access_token(data: dict):
 
 def verify_token(token: str):
     try: 
-        logging.INFO(f"try to verify token")
+        logging.info(f"try to verify token")
         payload = jwt.decode(token, SECRET_KEY, algorithms = {ALGORITHM})
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code = 401, detail = "Token has expired")
-    except jwt.JWTError:
+    except jwt.InvalidTokenError:
         raise HTTPException(status_code = 401, detail = "Invalid token")
     except Exception:
-        raise Exception(detail = "vas te faire connard")
+        raise Exception("vas te faire connard")
     
 def create_refresh_token(data: dict):
     return secrets.token_urlsafe(32)

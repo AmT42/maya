@@ -1,0 +1,51 @@
+version: '3.9'
+
+networks:
+  net:
+    driver: bridge
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:80"
+    depends_on:
+      - db
+      - server
+    networks:
+      - net
+
+  db:
+    image: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: maya_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    networks:
+      - net
+
+  server:
+    build:
+      context: ../chroma
+      dockerfile: Dockerfile
+    volumes:
+      - ../chroma:/chroma
+      - ./server.htpasswd:/chroma/server.htpasswd
+      - index_data:/index_data
+    command: uvicorn chromadb.app:app --reload --workers 1 --host 0.0.0.0 --port 8000 --log-config log_config.yml
+    environment:
+      - IS_PERSISTENT=TRUE
+      - CHROMA_SERVER_AUTH_PROVIDER=${CHROMA_SERVER_AUTH_PROVIDER}
+      - CHROMA_SERVER_AUTH_CREDENTIALS_FILE=${CHROMA_SERVER_AUTH_CREDENTIALS_FILE}
+      - CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER=${CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER}
+    ports:
+      - 8001:8000
+    networks:
+      - net
+
+volumes:
+  pgdata:
+  index_data:
+    driver: local

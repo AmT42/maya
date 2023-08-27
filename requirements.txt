@@ -5,3 +5,10 @@ psycopg2
 alembic
 bcrypt
 fastapi-users
+slowapi
+openai==0.27.8
+chromadb==0.4.2
+python-decouple
+google-cloud-vision==3.4.4
+langchain==0.0.235
+pillow
