@@ -7,3 +7,4 @@ storage/
 *.jpg
 app/alembic.ini
 *.mako
+server.htpasswd

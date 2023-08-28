@@ -2,6 +2,7 @@ from google.cloud import vision
 from PIL import Image
 import numpy as np 
 
+from google.cloud import vision
 
 def ocr_image(path, client):
 
@@ -27,3 +28,4 @@ def call_ocr(path, client):
     text_json = [entity_to_dict(t) for t in text]
     return text_json[0]["description"]
 
+client = vision.ImageAnnotatorClient()
