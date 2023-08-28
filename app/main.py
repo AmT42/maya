@@ -7,7 +7,7 @@ from utils.security import verify_password, hash_password, create_refresh_token,
 from fastapi.security import OAuth2PasswordBearer
 
 from core.config import settings
-from services.chatgpt import chatgpt
+from services.chatgpt.llm import chatgpt
 from services.ocr import ocr 
 from services.chroma_db.db import get_chroma_db, text_splitter
 
