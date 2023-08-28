@@ -136,3 +136,5 @@ class ChatGpt:
                     else:
                         vdb_output += f'{key2.replace("/"," ")} est "{value2}", ' 
         return vdb_output
+    
+chatgpt = ChatGpt(None, None, None, None, None)

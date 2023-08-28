@@ -3,15 +3,15 @@ from sqlalchemy.orm import Session
 from db.session import SessionLocal
 from db.models import Document, User
 from utils.security import verify_password, hash_password, create_refresh_token, create_access_token, verify_token
+
 from fastapi.security import OAuth2PasswordBearer
 
-from services.chatgpt import ChatGpt
-from services.ocr import call_ocr
+from core.config import settings
+from services.chatgpt.llm import chatgpt
+from services.ocr import ocr 
+from services.chroma_db.db import get_chroma_db, text_splitter
 
 from langchain.docstore.document import Document as ChromaDocument
-from langchain.vectorstores import Chroma 
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.embeddings.openai import OpenAIEmbeddings
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -23,28 +23,21 @@ from uuid import uuid4
 from google.cloud import vision
 from decouple import config
 
+from utils.date_fmt import convert_date_format
+
 import logging
 
 logger = logging.getLogger(__name__) 
 
 app = FastAPI()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config("GOOGLE_CREDENTIALS_PATH")
-os.environ["OPENAI_API_KEY"] = config("OPENAI_API_KEY")
 
-TEMP_STORAGE = "temp_storage"
-text_splitter = CharacterTextSplitter(chunk_size = 1000, chunk_overlap = 100)
-chroma_db = Chroma(collection_name = "smart_maya", embedding_function = OpenAIEmbeddings())
-chroma_db_raw = Chroma(collection_name = "smart_maya_raw", embedding_function = OpenAIEmbeddings())
-chatgpt = ChatGpt(None, None, None, None, None)
-client = vision.ImageAnnotatorClient()
+TEMP_STORAGE = settings.TEMP_STORAGE
 
 limiter = Limiter(key_func = get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-## later
-## from app.api.v1.routers import router as api_router
-## app.include_router(api_router, prefix = "api/v1")
+
 # Dependency 
 def get_db():
     db = SessionLocal()
@@ -52,6 +45,7 @@ def get_db():
         yield db 
     finally:
         db.close()
+
 
 def get_current_user(token: str = Depends(oauth2_scheme), db : Session = Depends(get_db)):
     payload = verify_token(token)
@@ -107,15 +101,16 @@ def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
     new_access_token = create_access_token({"sub": user.username})
     return {"access_token" : new_access_token}
 
-
-
 @app.get("/users/me")
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 @app.post("/upload")
 @limiter.limit("5/minute")
-def upload_document(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db),
+def upload_document(request: Request, 
+                    file: UploadFile = File(...), 
+                    db: Session = Depends(get_db),
+                    chroma_db = Depends(get_chroma_db),
                      User = Depends(get_current_user)):
     try: 
         content_type = file.content_type
@@ -128,7 +123,7 @@ def upload_document(request: Request, file: UploadFile = File(...), db: Session 
             file_path =  f'storage/{TEMP_STORAGE}/{doc_id}.jpg'
             with open(file_path, "wb") as f:   ## add size checking condition 
                 f.write(file.file.read())  
-            ocr_text = call_ocr(file_path, client = client)
+            ocr_text = ocr.call_ocr(file_path, client = ocr.client)
         else:
             ocr_text = file.file.read().decode()
 
@@ -141,7 +136,7 @@ def upload_document(request: Request, file: UploadFile = File(...), db: Session 
             id = doc_id,
             file_path = file_path if content_type.startswith("images") else None, 
             doctype = extracted_info["doctype"],
-            date = extracted_info["date"],
+            date = convert_date_format(extracted_info["date"]),
             entity_or_reason = extracted_info["entite_ou_raison"],
             additional_info=json.dumps(extracted_info['info_supplementaires']),
             user_id = User.id
@@ -160,7 +155,7 @@ def upload_document(request: Request, file: UploadFile = File(...), db: Session 
         ids = [f"{doc_id}_{i}_ocr" for i in range(len(raw_docs))]
 
         # Add to the chroma vdb with its corresponding ids
-        chroma_db_raw.add_documents(docs, id = ids)
+        chroma_db.add_documents(docs, id = ids)
 
         return {
             "doc_id" : doc_id,
@@ -194,3 +189,9 @@ def get_info(db: Session = Depends(get_db)):
 @app.get("/")
 def read_root():
     return {"Hello":"Word"}
+
+
+
+## later
+## from app.api.v1.routers import router as api_router
+## app.include_router(api_router, prefix = "api/v1")
