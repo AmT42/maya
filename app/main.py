@@ -1,21 +1,3 @@
-from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request
-from sqlalchemy.orm import Session
-from db.session import SessionLocal
-from db.models import Document, User
-from utils.security import verify_password, hash_password, create_refresh_token, create_access_token, verify_token
-
-from fastapi.security import OAuth2PasswordBearer
-
-from core.config import settings
-from services.chatgpt.llm import chatgpt
-from services.ocr import ocr 
-from services.chroma_db.db import get_chroma_db, text_splitter
-
-from langchain.docstore.document import Document as ChromaDocument
-
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 import json
 import os 
 import shutil 
@@ -23,6 +5,25 @@ from uuid import uuid4
 from google.cloud import vision
 from decouple import config
 
+
+from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request
+from fastapi.security import OAuth2PasswordBearer
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from sqlalchemy.orm import Session
+from langchain.docstore.document import Document as ChromaDocument
+
+
+from db.session import SessionLocal
+from db.models import Document, User
+from db.schemas import ValidatedInfo
+from utils.security import verify_password, hash_password, create_refresh_token, create_access_token, verify_token
+
+from core.config import settings
+from services.chatgpt.llm import chatgpt
+from services.ocr import ocr 
+from services.chroma_db.db import get_chroma_db, get_chroma_db_json, text_splitter
 from utils.date_fmt import convert_date_format
 
 import logging
@@ -169,11 +170,69 @@ def upload_document(request: Request,
     except IOError as ioe:
         logger.error(f"I/O error {ioe}")
         db.rollback()
-        raise HTTPException(status_code = 500, defail = "File processing error")
+        raise HTTPException(status_code = 500, detail = "File processing error")
     except Exception as e :
         logger.error(f"Unexpected error: {e}")
         db.rollback()
         raise HTTPException(status_code = 500, detail = "An unexpected error occurred")
+    finally:
+        db.close()
+
+@app.post("/validate")
+def validate(request: Request, 
+             validated_info: ValidatedInfo,
+             db: Session = Depends(get_chroma_db),
+             chroma_db = Depends(get_chroma_db_json)):
+    try:
+        # Read the validated for receiving the validated information
+        doc_id = validated_info.doc_id
+        info = validated_info.extracted_info
+
+        document_to_update = db.query(Document).filter_by(id = doc_id).first()
+
+        if not document_to_update:
+            raise HTTPException(status_code = 400, detail = f"Document with id {doc_id} not found!")
+        
+        # Update the attributes of the record with validated info
+        document_to_update.doctype = info["doctype"]
+        document_to_update.date = convert_date_format(info["date"])
+        document_to_update.date = info["entity_or_reason"]
+        document_to_update.date = json.dumps(info["info_supplementaires"])
+
+        # Commit the changes
+        db.commit()
+
+        if document_to_update.file_path:
+            directory = f"{info['doctype']}/{info['entite_ou_raison']}/"
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            final_file_path = f'{directory}{info["date"].replace("/","-")}.jpg'
+            shutil.move(document_to_update.file_path, final_file_path)
+
+        # Convert validated info to semantic format and store in Chroma DB (if needed)
+        validated_info_semantic = chatgpt.json2semantic(info)
+        # From text to document
+        json_docs = [ChromaDocument(page_content = json.dumps(validated_info_semantic), metadata = {"type":"chatgpt", "id": doc_id})]
+
+        # Split document into chunks
+        docs = text_splitter.split_documents(json_docs)
+
+        # Get unique Id per chunk
+        ids = [f'{doc_id}_{i}_gpt' for i in range(len(json_docs))]
+
+        # Add to the chroma vdb with its corresponding ids 
+        chroma_db.add_documents(docs, ids = ids) 
+
+    except ValueError as ve:
+        db.rollback()
+        raise HTTPException(status_code=400, detail = str(ve))
+    except IOError as ioe:
+        logger.error(f"I/O error {ioe}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail = "File processing error")
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code = 500, detail = "An unexpected error occured")
     finally:
         db.close()
 
