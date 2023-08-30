@@ -130,7 +130,7 @@ class ChatGpt:
             else:
                 vdb_output += f'{self.key_mapping[key1]}'
                 print(value1)
-                for key2, value2 in json.loads(value1).items():
+                for key2, value2 in value1.items():
                     if value2 == "N/A":
                         continue
                     else:
