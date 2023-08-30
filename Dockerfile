@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y libpq-dev gcc && apt-get clean
 WORKDIR /app
 
 # Copy the current directory contents into the container at /app
-COPY ./app .
+COPY ./app /app
 COPY ./requirements.txt /app/requirements.txt 
 COPY ./.env /app/.env
 
@@ -35,5 +35,5 @@ EXPOSE 80
 ENV NAME World
 
 # Run the application when the container launches
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80","--reload"]
 

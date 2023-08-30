@@ -4,16 +4,15 @@ import shutil
 from uuid import uuid4
 from google.cloud import vision
 from decouple import config
+import traceback
 
-
-from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request
+from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body
 from fastapi.security import OAuth2PasswordBearer
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from langchain.docstore.document import Document as ChromaDocument
-
 
 from db.session import SessionLocal
 from db.models import Document, User
@@ -105,7 +104,7 @@ def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
 @app.get("/users/me")
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
-
+import logging 
 @app.post("/upload")
 @limiter.limit("5/minute")
 def upload_document(request: Request, 
@@ -181,7 +180,7 @@ def upload_document(request: Request,
 @app.post("/validate")
 def validate(request: Request, 
              validated_info: ValidatedInfo,
-             db: Session = Depends(get_chroma_db),
+             db: Session = Depends(get_db),
              chroma_db = Depends(get_chroma_db_json)):
     try:
         # Read the validated for receiving the validated information
@@ -196,8 +195,8 @@ def validate(request: Request,
         # Update the attributes of the record with validated info
         document_to_update.doctype = info["doctype"]
         document_to_update.date = convert_date_format(info["date"])
-        document_to_update.date = info["entity_or_reason"]
-        document_to_update.date = json.dumps(info["info_supplementaires"])
+        document_to_update.entity_or_reason = info["entite_ou_raison"]
+        document_to_update.additional_info = json.dumps(info["info_supplementaires"])
 
         # Commit the changes
         db.commit()
@@ -223,6 +222,10 @@ def validate(request: Request,
         # Add to the chroma vdb with its corresponding ids 
         chroma_db.add_documents(docs, ids = ids) 
 
+        return {
+            "doc_id": id,
+            "validated_info": info
+        }
     except ValueError as ve:
         db.rollback()
         raise HTTPException(status_code=400, detail = str(ve))
@@ -231,14 +234,13 @@ def validate(request: Request,
         db.rollback()
         raise HTTPException(status_code=500, detail = "File processing error")
     except Exception as e:
+        logger.error(f'Unexpected error {e}')
+        logger.error(traceback.format_exc())
         db.rollback()
         raise HTTPException(status_code = 500, detail = "An unexpected error occured")
     finally:
         db.close()
 
-@app.post("/validate")
-def validate_information(db: Session = Depends(get_db)):
-    pass 
 
 @app.get("/info")
 def get_info(db: Session = Depends(get_db)):
