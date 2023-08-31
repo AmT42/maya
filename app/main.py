@@ -121,8 +121,10 @@ def upload_document(request: Request,
         # Determine if we received an image or text
         if content_type.startswith("image/"):
             file_path =  f'storage/{TEMP_STORAGE}/{doc_id}.jpg'
+            logger.info("Saving")
             with open(file_path, "wb") as f:   ## add size checking condition 
                 f.write(file.file.read())  
+                logger.info("SAVED")
             ocr_text = ocr.call_ocr(file_path, client = ocr.client)
         else:
             ocr_text = file.file.read().decode()
@@ -134,7 +136,7 @@ def upload_document(request: Request,
         # Store the extracted information in the database
         new_document = Document(
             id = doc_id,
-            file_path = file_path if content_type.startswith("images") else None, 
+            file_path = file_path if content_type.startswith("image") else None, 
             doctype = extracted_info["doctype"],
             date = convert_date_format(extracted_info["date"]),
             entity_or_reason = extracted_info["entite_ou_raison"],
@@ -200,9 +202,10 @@ def validate(request: Request,
 
         # Commit the changes
         db.commit()
-
+        user_id = document_to_update.user_id
+        logger.info(f"document_to_update.file_path {document_to_update.file_path}")
         if document_to_update.file_path:
-            directory = f"{info['doctype']}/{info['entite_ou_raison']}/"
+            directory = f"storage/{user_id}/{info['doctype']}/{info['entite_ou_raison'].replace('/','-')}/"
             if not os.path.exists(directory):
                 os.makedirs(directory)
             final_file_path = f'{directory}{info["date"].replace("/","-")}.jpg'
@@ -222,10 +225,8 @@ def validate(request: Request,
         # Add to the chroma vdb with its corresponding ids 
         chroma_db.add_documents(docs, ids = ids) 
 
-        return {
-            "doc_id": id,
-            "validated_info": info
-        }
+        return {"doc_id": doc_id,
+                "validated_info": info}
     except ValueError as ve:
         db.rollback()
         raise HTTPException(status_code=400, detail = str(ve))
@@ -241,6 +242,30 @@ def validate(request: Request,
     finally:
         db.close()
 
+
+@app.get("/user/docuemnts")
+def get_user_documents(User = Depends(get_current_user), 
+                       db = Depends(get_db)):
+    
+    # Fetch the user from the database using the provided User object's ID
+    db_user = db.query(User).filter(User.id == User.id).first()
+
+    if not db_user:
+        raise HTTPException(status_code = 404, detail = "User not found")
+    try: 
+        documents = db_user.documents
+        # Convert the documents to a suitable format for returning as a response
+        # This is a list of dictionaries, for example
+        response = [{"id": doc.id, "file_path": doc.file_path, "doctype": doc.doctype, "date": doc.date, "entity_or_reason": doc.entity_or_reason, "additional_info": doc.additional_info} for doc in documents]
+
+        return response
+    
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail = str(ve))
+    except Exception:
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code = 500, detail = "An unexpected error occured")
+    
 
 @app.get("/info")
 def get_info(db: Session = Depends(get_db)):
