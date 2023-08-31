@@ -104,6 +104,7 @@ def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
 @app.get("/users/me")
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
 import logging 
 @app.post("/upload")
 @limiter.limit("5/minute")
@@ -244,11 +245,11 @@ def validate(request: Request,
 
 
 @app.get("/user/docuemnts")
-def get_user_documents(User = Depends(get_current_user), 
+def get_user_documents(current_user = Depends(get_current_user), 
                        db = Depends(get_db)):
     
     # Fetch the user from the database using the provided User object's ID
-    db_user = db.query(User).filter(User.id == User.id).first()
+    db_user = db.query(User).filter(User.id == current_user.id).first()
 
     if not db_user:
         raise HTTPException(status_code = 404, detail = "User not found")
