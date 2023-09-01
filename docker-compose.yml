@@ -9,6 +9,8 @@ services:
     build: .
     ports:
       - "8000:80"
+    volumes:
+      - ./app/storage:/app/storage
     # volumes:
     #   - ./app:/app
     depends_on:
@@ -55,3 +57,4 @@ volumes:
   pgdata:
   index_data:
     driver: local
+  # storage:
