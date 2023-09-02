@@ -139,10 +139,10 @@ def upload_document(request: Request,
         new_document = Document(
             id = doc_id,
             file_path = file_path if content_type.startswith("image") else None, 
-            doctype = extracted_info["doctype"],
+            doctype = extracted_info["doctype"].lower().lower().strip(),
             date = convert_date_format(extracted_info["date"]),
-            entity_or_reason = extracted_info["entite_ou_raison"],
-            additional_info=json.dumps(extracted_info['info_supplementaires']),
+            entity_or_reason = extracted_info["entite_ou_raison"].lower().strip(),
+            additional_info=json.dumps({key.lower().strip(): val.lower().strip() for key, val in extracted_info['info_supplementaires'].items()}),
             user_id = User.id
         )
         db.add(new_document)
@@ -198,10 +198,10 @@ def validate(request: Request,
             raise HTTPException(status_code = 400, detail = f"Document with id {doc_id} not found!")
         
         # Update the attributes of the record with validated info
-        document_to_update.doctype = info["doctype"]
+        document_to_update.doctype = info["doctype"].lower().strip()
         document_to_update.date = convert_date_format(info["date"])
-        document_to_update.entity_or_reason = info["entite_ou_raison"]
-        document_to_update.additional_info = json.dumps(info["info_supplementaires"])
+        document_to_update.entity_or_reason = info["entite_ou_raison"].lower().strip()
+        document_to_update.additional_info = json.dumps({key.lower().strip(): val.lower().strip() for key, val in info['info_supplementaires'].items()})
 
         # Commit the changes
         db.commit()
@@ -255,7 +255,7 @@ def get_user_documents(request: Request,
                        db = Depends(get_db)):
     
     # Fetch the user from the database using the provided User object's ID
-    doc_query = db.query(Document).filter(db.user_id == current_user.id)
+    doc_query = db.query(Document).filter(Document.user_id == current_user.id)
 
     if not doc_query:
         raise HTTPException(status_code = 404, detail = "Document not found")
@@ -280,9 +280,37 @@ def get_user_documents(request: Request,
         logger.error(traceback.format_exc())
         raise HTTPException(status_code = 500, detail = "An unexpected error occured")
 
-@app.get("/")
-def read_root():
-    return {"Hello":"Word"}
+@limiter.limite("10/minutes")
+@app.get("user/search")
+def search_documents(request: Request,
+                     query: str, 
+                     top_k: int = 3, 
+                     current_user =  Depends(get_current_user),
+                     db = Depends(get_db),
+                     chroma_db = Depends(get_chroma_db_json)):
+    
+    doc_query = db.query(Document).filter(Document.user_id == current_user.id)
+
+    if not doc_query:
+        raise HTTPException(status_code = 404, detail = "Document not found")
+    try: 
+        retrieved_info = chroma_db.similarity_search(query)[:top_k]
+        retrieved_ids = [doc.metadata["id"] for doc in retrieved_info]
+        documents = doc_query.filter(Document.id.in_(retrieved_ids)).all()
+
+        if not documents:
+            raise HTTPException(status_code=404, detail = "Search not found")
+        
+        response = [{"id": doc.id, "file_path": doc.file_path, "doctype": doc.doctype, "date": doc.date, "entity_or_reason": doc.entity_or_reason, "additional_info": doc.additional_info} for doc in documents]
+
+        return response
+    
+    except ValueError as ve:
+        raise HTTPException(status_code = 400, detail = str(ve))
+    except Exception:
+        logging.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail = "An unexpected error occured")
+
 
 
 
