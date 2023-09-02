@@ -5,6 +5,7 @@ from uuid import uuid4
 from google.cloud import vision
 from decouple import config
 import traceback
+from typing import Optional 
 
 from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body
 from fastapi.security import OAuth2PasswordBearer
@@ -180,6 +181,7 @@ def upload_document(request: Request,
     finally:
         db.close()
 
+@limiter.limit("5/minute")
 @app.post("/validate")
 def validate(request: Request, 
              validated_info: ValidatedInfo,
@@ -243,18 +245,29 @@ def validate(request: Request,
     finally:
         db.close()
 
-
-@app.get("/user/docuemnts")
-def get_user_documents(current_user = Depends(get_current_user), 
+@limiter.limit("30/minute")
+@app.get("/user/documents")
+def get_user_documents(request: Request,
+                       current_user = Depends(get_current_user), 
+                       doctype: Optional[str] = None,
+                       date: Optional[str] = None,
+                       entity: Optional[str] = None,
                        db = Depends(get_db)):
     
     # Fetch the user from the database using the provided User object's ID
-    db_user = db.query(User).filter(User.id == current_user.id).first()
+    doc_query = db.query(Document).filter(db.user_id == current_user.id)
 
-    if not db_user:
-        raise HTTPException(status_code = 404, detail = "User not found")
+    if not doc_query:
+        raise HTTPException(status_code = 404, detail = "Document not found")
     try: 
-        documents = db_user.documents
+        if doctype:
+            doc_query = doc_query.filter(Document.doctype == doctype)
+        if date:
+            doc_query = doc_query.filter(Document.date == date)
+        if entity:
+            doc_query = doc_query.filter(Document.entity_or_reason == entity)
+        
+        documents = doc_query.all()
         # Convert the documents to a suitable format for returning as a response
         # This is a list of dictionaries, for example
         response = [{"id": doc.id, "file_path": doc.file_path, "doctype": doc.doctype, "date": doc.date, "entity_or_reason": doc.entity_or_reason, "additional_info": doc.additional_info} for doc in documents]
@@ -266,12 +279,6 @@ def get_user_documents(current_user = Depends(get_current_user),
     except Exception:
         logger.error(traceback.format_exc())
         raise HTTPException(status_code = 500, detail = "An unexpected error occured")
-    
-
-@app.get("/info")
-def get_info(db: Session = Depends(get_db)):
-    pass
-
 
 @app.get("/")
 def read_root():
