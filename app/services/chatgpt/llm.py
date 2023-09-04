@@ -56,11 +56,11 @@ class ChatGpt:
 
                 Ton rôle est crucial pour aider les personnes qui ont une phobie administrative.
 
-                Format attendu de la réponse est sensé etre un dictionnaire tel que sur python si on fait eval(ton output) on a un dictionnaire de la forme:
+                Format attendu de la réponse est sensé etre un dictionnaire tel que sur python si on fait eval(ton output) on a un dictionnaire de la forme egalement la valeur de la key info_spllementaires est aussi sensé etre un dictionnaire je devrais sensé pouvoir faire eval(ton output["info_supplementaires"]):
                 dict('doctype': [classification du document]
                 'date': [date d'envoi du document]
                 'entite_ou_raison': [entité qui a envoyé le document ou raison]
-                'info_supplementaires': [toutes les informations pertinentes extraites du document)
+                'info_supplementaires': dict([toutes les informations pertinentes extraites du document])
                 N'utilise surtout pas de guillemets dans tes mots si ce n'est pour formet un string python. Par exemple tu ecrira avec les mots comme s'appeler en tant que s_appeler
                 En cas de doute ou si une information est inconnue, n'hésite pas à indiquer "N/A". Par exemple, entité: "N/A". 
                 """ 

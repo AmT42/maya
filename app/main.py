@@ -134,7 +134,7 @@ def upload_document(request: Request,
         file.file.close()
 
         extracted_info = chatgpt.call_gpt(text = ocr_text)
-
+        logger.info(extracted_info['info_supplementaires'])
         # Store the extracted information in the database
         new_document = Document(
             id = doc_id,
@@ -142,7 +142,7 @@ def upload_document(request: Request,
             doctype = extracted_info["doctype"].lower().lower().strip(),
             date = convert_date_format(extracted_info["date"]),
             entity_or_reason = extracted_info["entite_ou_raison"].lower().strip(),
-            additional_info=json.dumps({key.lower().strip(): val.lower().strip() for key, val in extracted_info['info_supplementaires'].items()}),
+            additional_info=json.dumps({key.lower().strip(): val for key, val in eval(extracted_info['info_supplementaires']).items()}),
             user_id = User.id
         )
         db.add(new_document)
@@ -201,7 +201,7 @@ def validate(request: Request,
         document_to_update.doctype = info["doctype"].lower().strip()
         document_to_update.date = convert_date_format(info["date"])
         document_to_update.entity_or_reason = info["entite_ou_raison"].lower().strip()
-        document_to_update.additional_info = json.dumps({key.lower().strip(): val.lower().strip() for key, val in info['info_supplementaires'].items()})
+        document_to_update.additional_info = json.dumps({key.lower().strip(): val for key, val in eval(info['info_supplementaires']).items()})
 
         # Commit the changes
         db.commit()
@@ -280,8 +280,8 @@ def get_user_documents(request: Request,
         logger.error(traceback.format_exc())
         raise HTTPException(status_code = 500, detail = "An unexpected error occured")
 
-@limiter.limite("10/minutes")
-@app.get("user/search")
+@limiter.limit("10/minutes")
+@app.get("/user/search")
 def search_documents(request: Request,
                      query: str, 
                      top_k: int = 3, 
