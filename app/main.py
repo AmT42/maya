@@ -130,7 +130,7 @@ def upload_document(request: Request,
             ocr_text = ocr.call_ocr(file_path, client = ocr.client)
         else:
             ocr_text = file.file.read().decode()
-
+        logger.info(f'OCR TEXT {ocr_text}')
         file.file.close()
 
         extracted_info = chatgpt.call_gpt(text = ocr_text)
@@ -142,7 +142,7 @@ def upload_document(request: Request,
             doctype = extracted_info["doctype"].lower().lower().strip(),
             date = convert_date_format(extracted_info["date"]),
             entity_or_reason = extracted_info["entite_ou_raison"].lower().strip(),
-            additional_info=json.dumps({key.lower().strip(): val for key, val in eval(extracted_info['info_supplementaires']).items()}),
+            additional_info=json.dumps({key.lower().strip(): val for key, val in extracted_info['info_supplementaires'].items()}),
             user_id = User.id
         )
         db.add(new_document)
