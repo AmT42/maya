@@ -6,6 +6,7 @@ from google.cloud import vision
 from decouple import config
 import traceback
 from typing import Optional 
+from uuid import UUID
 
 from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body
 from fastapi.security import OAuth2PasswordBearer
@@ -134,7 +135,7 @@ def upload_document(request: Request,
         file.file.close()
 
         extracted_info = chatgpt.call_gpt(text = ocr_text)
-        logger.info(extracted_info['info_supplementaires'])
+        logger.info(extracted_info)
         # Store the extracted information in the database
         new_document = Document(
             id = doc_id,
@@ -157,7 +158,7 @@ def upload_document(request: Request,
 
         # Get unique Id per chunk
         ids = [f"{doc_id}_{i}_ocr" for i in range(len(raw_docs))]
-
+        logger.info(f'IDS {ids} doc_id {doc_id}')
         # Add to the chroma vdb with its corresponding ids
         chroma_db.add_documents(docs, id = ids)
 
@@ -196,7 +197,7 @@ def validate(request: Request,
 
         if not document_to_update:
             raise HTTPException(status_code = 400, detail = f"Document with id {doc_id} not found!")
-        
+
         # Update the attributes of the record with validated info
         document_to_update.doctype = info["doctype"].lower().strip()
         document_to_update.date = convert_date_format(info["date"])
@@ -280,6 +281,44 @@ def get_user_documents(request: Request,
         logger.error(traceback.format_exc())
         raise HTTPException(status_code = 500, detail = "An unexpected error occured")
 
+@app.delete("/user/documents/{doc_id}")
+def delete_document(doc_id: UUID, 
+                    current_user = Depends(get_current_user), 
+                    db: Session = Depends(get_db), 
+                    chroma_db_json: Session = Depends(get_chroma_db_json),
+                    chroma_db_raw: Session = Depends(get_chroma_db)):
+        
+    # Step 1: Fetch the document record from the PostgreSQL database
+    doc_to_delete = db.query(Document).filter(Document.user_id == current_user.id, Document.id == doc_id).first()
+
+    if not doc_to_delete:
+        raise HTTPException(status_code=404, detail = "Document to delete not found")
+    
+    try:
+        # Step 2: Delete the document record from the PostgreSQL database
+        db.delete(doc_to_delete)
+        db.commit()
+
+        # Step 4: Remove the document data from the ChromaDB vector database
+        chroma_db_json.delete(where = {"id":doc_id})
+        chroma_db_raw.delete(where = {"id": doc_id})
+
+        # Step 3: Delete the actual document file from the file system
+        file_path = doc_to_delete.file_path 
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+
+        return {"detail" : "Document deleted successfully"}
+    except ValueError as ve:
+        db.rollback()
+        raise HTTPException(status_code=400, detail = str(ve))
+    except Exception:
+        db.rollback()
+        logging.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail = "An unexpected error occured")
+    finally:
+        db.close()
+
 @limiter.limit("10/minutes")
 @app.get("/user/search")
 def search_documents(request: Request,
@@ -311,7 +350,21 @@ def search_documents(request: Request,
         logging.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail = "An unexpected error occured")
 
+@app.post("/delete_all_data")
+async def delete_all_data(db: Session = Depends(get_db)):
+    try: 
+        db.query(Document).delete()
+        db.query(User).delete()
 
+        db.commit()
+        return {"message": "All data deleted successfully"}
+    except Exception as e:
+        # Rollback the transaction in case of an error
+        db.rollback()
+        
+        # Log the error and return a 500 status code with the error message
+        logger.error(f"An error occurred while deleting data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 ## later
