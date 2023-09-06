@@ -157,11 +157,13 @@ def upload_document(request: Request,
         docs = text_splitter.split_documents(raw_docs)
 
         # Get unique Id per chunk
-        ids = [f"{doc_id}_{i}_ocr" for i in range(len(raw_docs))]
+        ids = [f"{doc_id}-{i}" for i in range(len(docs))]
         logger.info(f'IDS {ids} doc_id {doc_id}')
+        logger.info(docs)
         # Add to the chroma vdb with its corresponding ids
-        chroma_db.add_documents(docs, id = ids)
+        chroma_db.add_documents(docs, ids = ids)
 
+        logger.info("DOCUMENT ADDED TO CHROMA")
         return {
             "doc_id" : doc_id,
             "extracted_info" : extracted_info
@@ -202,7 +204,7 @@ def validate(request: Request,
         document_to_update.doctype = info["doctype"].lower().strip()
         document_to_update.date = convert_date_format(info["date"])
         document_to_update.entity_or_reason = info["entite_ou_raison"].lower().strip()
-        document_to_update.additional_info = json.dumps({key.lower().strip(): val for key, val in eval(info['info_supplementaires']).items()})
+        document_to_update.additional_info = json.dumps({key.lower().strip(): val for key, val in info['info_supplementaires'].items()})
 
         # Commit the changes
         db.commit()
@@ -224,7 +226,7 @@ def validate(request: Request,
         docs = text_splitter.split_documents(json_docs)
 
         # Get unique Id per chunk
-        ids = [f'{doc_id}_{i}_gpt' for i in range(len(json_docs))]
+        ids = [f'{doc_id}-{i}' for i in range(len(docs))]
 
         # Add to the chroma vdb with its corresponding ids 
         chroma_db.add_documents(docs, ids = ids) 
