@@ -302,8 +302,8 @@ def delete_document(doc_id: UUID,
         db.commit()
 
         # Step 4: Remove the document data from the ChromaDB vector database
-        chroma_db_json.delete(where = {"id":doc_id})
-        chroma_db_raw.delete(where = {"id": doc_id})
+        chroma_db_json.delete(ids = str(doc_id) + "-0")
+        chroma_db_raw.delete(ids =  str(doc_id) + "-0")
 
         # Step 3: Delete the actual document file from the file system
         file_path = doc_to_delete.file_path 
