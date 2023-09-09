@@ -20,7 +20,7 @@ from db.session import SessionLocal
 from db.models import Document, User
 from db.schemas import ValidatedInfo
 from utils.security import verify_password, hash_password, create_refresh_token, create_access_token, verify_token
-# from services.calendar.google_calendar import create_event
+from services.calendar.google_calendar import create_event
 
 from core.config import settings
 from services.chatgpt.llm import chatgpt
@@ -232,6 +232,8 @@ def validate(request: Request,
 
         # Add to the chroma vdb with its corresponding ids 
         chroma_db.add_documents(docs, ids = ids) 
+        #create event in google calendar
+        create_event(info)
 
         return {"doc_id": doc_id,
                 "validated_info": info}

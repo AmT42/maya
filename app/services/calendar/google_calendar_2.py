@@ -1,7 +1,6 @@
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from utils.date_fmt import convert_deadline
 import logging
@@ -10,17 +9,35 @@ import datetime
 from decouple import config
 
 
-
-
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
-SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_SA_CREDENTIALS')
+PATH_TO_CREDENTIALS = os.getenv('GOOGLE_CALENDAR_CREDENTIALS')
+
 
 def init_google_calendar_service():
-    creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    creds = None
 
-    service = build('calendar', 'v3', credentials=creds)
-    return service
+    # The file token.json stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    if os.path.exists("storage/token.json"):
+        creds = Credentials.from_authorized_user_file('storage/token.json', SCOPES)
+
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                PATH_TO_CREDENTIALS, 
+                SCOPES,
+                redirect_uri = 'http://host.docker.internal:4065/'
+            )
+            creds = flow.run_local_server(port=4065) # Using port=0 to let the system choose a free port
+        # Save the credentials for the next run
+        with open('token.json', "w") as token:
+            token.write(creds.to_json())
+    
+    return build('calendar', 'v3', credentials=creds)
 
 def create_event(validated_info):
     service = init_google_calendar_service()
@@ -41,7 +58,7 @@ def create_event(validated_info):
         },
     }
 
-    event = service.events().insert(calendarId='krimino938@gmail.com', body=event_details).execute()
+    event = service.events().insert(calendarId='primary', body=event_details).execute()
     return f'Event Created: {event["htmlLink"]}'
 
 # SCOPES = ["https://www.googleapis.com/auth/calendar"]

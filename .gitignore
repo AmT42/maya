@@ -8,3 +8,4 @@ storage/
 app/alembic.ini
 *.mako
 server.htpasswd
+test/*.json
