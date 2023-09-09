@@ -9,8 +9,11 @@ slowapi
 openai==0.27.8
 chromadb==0.4.2
 python-decouple
-google-cloud-vision==3.4.4
 langchain==0.0.235
+google-cloud-vision==3.4.4
+google-api-python-client==2.20.0
+google-auth==2.0.2
+google-auth-oauthlib==0.4.6
+google-auth-httplib2==0.1.0
 tiktoken
 pillow
-google-api-python-client
