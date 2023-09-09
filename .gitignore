@@ -1,5 +1,5 @@
 .env
-app/core/google-credentials.json
+app/core/*.json
 *.pyc
 __pycache__/
 notebooks/
@@ -8,3 +8,4 @@ storage/
 app/alembic.ini
 *.mako
 server.htpasswd
+test/*.json

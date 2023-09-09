@@ -29,8 +29,9 @@ class Document(Base):
     file_path = Column(String)
     doctype = Column(String)
     date = Column(DateTime)
-    entity_or_reason = Column(String)
-    additional_info = Column(String)
+    expediteur = Column(String)
+    recapitulatif = Column(String)
+    google_calendar = Column(String)
 
     # Foreign key to User
     user_id = Column(UUID(as_uuid=True), ForeignKey("user.id"))

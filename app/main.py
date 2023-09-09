@@ -20,6 +20,7 @@ from db.session import SessionLocal
 from db.models import Document, User
 from db.schemas import ValidatedInfo
 from utils.security import verify_password, hash_password, create_refresh_token, create_access_token, verify_token
+from services.calendar.google_calendar import create_event
 
 from core.config import settings
 from services.chatgpt.llm import chatgpt
@@ -142,8 +143,9 @@ def upload_document(request: Request,
             file_path = file_path if content_type.startswith("image") else None, 
             doctype = extracted_info["doctype"].lower().lower().strip(),
             date = convert_date_format(extracted_info["date"]),
-            entity_or_reason = extracted_info["entite_ou_raison"].lower().strip(),
-            additional_info=json.dumps({key.lower().strip(): val for key, val in extracted_info['info_supplementaires'].items()}),
+            expediteur = extracted_info["expediteur"].lower().strip(),
+            recapitulatif=extracted_info['recapitulatif'].lower().strip(),
+            google_calendar = extracted_info['google_calendar'],
             user_id = User.id
         )
         db.add(new_document)
@@ -203,24 +205,24 @@ def validate(request: Request,
         # Update the attributes of the record with validated info
         document_to_update.doctype = info["doctype"].lower().strip()
         document_to_update.date = convert_date_format(info["date"])
-        document_to_update.entity_or_reason = info["entite_ou_raison"].lower().strip()
-        document_to_update.additional_info = json.dumps({key.lower().strip(): val for key, val in info['info_supplementaires'].items()})
-
+        document_to_update.expediteur = info["expediteur"].lower().strip()
+        document_to_update.recapitulatif = info['recapitulatif'].lower().strip()
+        document_to_update.google_calendar = info['google_calendar']
         # Commit the changes
         db.commit()
         user_id = document_to_update.user_id
         logger.info(f"document_to_update.file_path {document_to_update.file_path}")
         if document_to_update.file_path:
-            directory = f"storage/{user_id}/{info['doctype']}/{info['entite_ou_raison'].replace('/','-')}/"
+            directory = f"storage/{user_id}/{info['doctype']}/{info['expediteur'].replace('/','-')}/"
             if not os.path.exists(directory):
                 os.makedirs(directory)
             final_file_path = f'{directory}{info["date"].replace("/","-")}.jpg'
             shutil.move(document_to_update.file_path, final_file_path)
 
         # Convert validated info to semantic format and store in Chroma DB (if needed)
-        validated_info_semantic = chatgpt.json2semantic(info)
+        # validated_info_semantic = chatgpt.json2semantic(info)
         # From text to document
-        json_docs = [ChromaDocument(page_content = json.dumps(validated_info_semantic), metadata = {"type":"chatgpt", "id": doc_id})]
+        json_docs = [ChromaDocument(page_content = json.dumps(info), metadata = {"type":"chatgpt", "id": doc_id})]
 
         # Split document into chunks
         docs = text_splitter.split_documents(json_docs)
@@ -230,6 +232,8 @@ def validate(request: Request,
 
         # Add to the chroma vdb with its corresponding ids 
         chroma_db.add_documents(docs, ids = ids) 
+        #create event in google calendar
+        create_event(info)
 
         return {"doc_id": doc_id,
                 "validated_info": info}

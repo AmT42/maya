@@ -9,8 +9,10 @@ services:
     build: .
     ports:
       - "8000:80"
+      - "4060:4060"
     volumes:
       - ./app/storage:/app/storage
+      - ./app/core:/app/core 
     # volumes:
     #   - ./app:/app
     depends_on:
@@ -19,8 +21,10 @@ services:
     networks:
       - net
     environment:
-      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_CREDENTIALS_PATH}
+      GOOGLE_OCR_CREDENTIALS: ${GOOGLE_CREDENTIALS_PATH}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_CALENDAR_CREDENTIALS: ${GOOGLE_CREDENTIALS_CALENDAR_PATH}
+      GOOGLE_SA_CREDENTIALS: ${GOOGLE_CREDENTIALS_SA_PATH}
 
   db:
     image: postgres
