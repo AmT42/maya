@@ -10,11 +10,11 @@ app/alembic.ini
 server.htpasswd
 test/*.json
 node_modules
-app_mobile/
+mobile_app/
 
 # Dependency directories
-react_app/node_modules/
-react_app/ios/Pods/
+mobile_app/node_modules/
+mobile_app/ios/Pods/
 
 # Misc
 *.jar
@@ -31,7 +31,7 @@ react_app/ios/Pods/
 *.tmproj
 *.vi
 *~
-react_app/.idea/
+mobile_app/.idea/
 
 # OS generated files
 .DS_Store
@@ -43,18 +43,18 @@ ehthumbs.db
 Thumbs.db
 
 # Android directories
-react_app/android/app/build/
-react_app/android/.gradle
-react_app/android/build
-react_app/android/.idea
+mobile_app/android/app/build/
+mobile_app/android/.gradle
+mobile_app/android/build
+mobile_app/android/.idea
 
 # iOS directories
-react_app/ios/build/
-react_app/ios/.idea
-react_app/ios/Carthage
-react_app/ios/Pods
-react_app/ios/*.xcworkspace
-react_app/ios/*.xcodeproj
+mobile_app/ios/build/
+mobile_app/ios/.idea
+mobile_app/ios/Carthage
+mobile_app/ios/Pods
+mobile_app/ios/*.xcworkspace
+mobile_app/ios/*.xcodeproj
 
 # Xcode directories
 *.pbxuser
