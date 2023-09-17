@@ -9,3 +9,71 @@ app/alembic.ini
 *.mako
 server.htpasswd
 test/*.json
+node_modules
+mobile_app/
+
+# Dependency directories
+mobile_app/node_modules/
+mobile_app/ios/Pods/
+
+# Misc
+*.jar
+*.DS_Store
+*.swp
+*.back
+*.bak
+*.orig
+*.pyc
+*.pyo
+*.rej
+*.swo
+*.swp
+*.tmproj
+*.vi
+*~
+mobile_app/.idea/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Android directories
+mobile_app/android/app/build/
+mobile_app/android/.gradle
+mobile_app/android/build
+mobile_app/android/.idea
+
+# iOS directories
+mobile_app/ios/build/
+mobile_app/ios/.idea
+mobile_app/ios/Carthage
+mobile_app/ios/Pods
+mobile_app/ios/*.xcworkspace
+mobile_app/ios/*.xcodeproj
+
+# Xcode directories
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+
+# Keystores (for Android app signing)
+*.jks
+*.keystore
+
+# JetBrains directories
+.idea/
+
+# VSCode directories
+.vscode/
+

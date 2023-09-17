@@ -346,8 +346,8 @@ def search_documents(request: Request,
         if not documents:
             raise HTTPException(status_code=404, detail = "Search not found")
         
-        response = [{"id": doc.id, "file_path": doc.file_path, "doctype": doc.doctype, "date": doc.date, "entity_or_reason": doc.entity_or_reason, "additional_info": doc.additional_info} for doc in documents]
-
+        response = [{"id": doc.id, "file_path": doc.file_path, "doctype": doc.doctype, "date": doc.date, "expediteur": doc.entity_or_reason, "recapitulatif": doc.additional_info, "google_calendar": doc.google_calendar} for doc in documents]
+        
         return response
     
     except ValueError as ve:
