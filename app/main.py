@@ -115,13 +115,14 @@ def upload_document(request: Request,
                     file: UploadFile = File(...), 
                     db: Session = Depends(get_db),
                     chroma_db = Depends(get_chroma_db),
-                     User = Depends(get_current_user)):
+                    User = Depends(get_current_user)):
     try: 
         content_type = file.content_type
 
         # Generate a unique ID for the document
         doc_id = uuid4()
         logger.info(f'CONTENT TYPE {content_type}')
+
         # Determine if we received an image or text
         if content_type.startswith("image/"):
             file_path =  f'storage/{TEMP_STORAGE}/{doc_id}.jpg'
@@ -141,7 +142,7 @@ def upload_document(request: Request,
         new_document = Document(
             id = doc_id,
             file_path = file_path if content_type.startswith("image") else None, 
-            doctype = extracted_info["doctype"].lower().lower().strip(),
+            doctype = extracted_info["doctype"].lower().strip(),
             date = convert_date_format(extracted_info["date"]),
             expediteur = extracted_info["expediteur"].lower().strip(),
             recapitulatif=extracted_info['recapitulatif'].lower().strip(),
@@ -258,7 +259,7 @@ def get_user_documents(request: Request,
                        current_user = Depends(get_current_user), 
                        doctype: Optional[str] = None,
                        date: Optional[str] = None,
-                       entity: Optional[str] = None,
+                       expediteur: Optional[str] = None,
                        db = Depends(get_db)):
     
     # Fetch the user from the database using the provided User object's ID
@@ -271,13 +272,13 @@ def get_user_documents(request: Request,
             doc_query = doc_query.filter(Document.doctype == doctype)
         if date:
             doc_query = doc_query.filter(Document.date == date)
-        if entity:
-            doc_query = doc_query.filter(Document.entity_or_reason == entity)
+        if expediteur:
+            doc_query = doc_query.filter(Document.expediteur == expediteur)
         
         documents = doc_query.all()
         # Convert the documents to a suitable format for returning as a response
         # This is a list of dictionaries, for example
-        response = [{"id": doc.id, "file_path": doc.file_path, "doctype": doc.doctype, "date": doc.date, "entity_or_reason": doc.entity_or_reason, "additional_info": doc.additional_info} for doc in documents]
+        response = [{"id": doc.id, "file_path": doc.file_path, "doctype": doc.doctype, "date": doc.date, "expediteur": doc.expediteur, "recapitulatif": doc.recapitulatif, "google_calendar":doc.recapitulatif} for doc in documents]
 
         return response
     
@@ -346,7 +347,7 @@ def search_documents(request: Request,
         if not documents:
             raise HTTPException(status_code=404, detail = "Search not found")
         
-        response = [{"id": doc.id, "file_path": doc.file_path, "doctype": doc.doctype, "date": doc.date, "expediteur": doc.entity_or_reason, "recapitulatif": doc.additional_info, "google_calendar": doc.google_calendar} for doc in documents]
+        response = [{"id": doc.id, "file_path": doc.file_path, "doctype": doc.doctype, "date": doc.date, "expediteur": doc.expediteur, "recapitulatif": doc.recapitulatif, "google_calendar": doc.google_calendar} for doc in documents]
         
         return response
     
