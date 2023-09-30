@@ -62,7 +62,7 @@ class ChatGpt:
                 dict('doctype': [classification du document]
                 'date': [date d'envoi du document],
                 'expediteur' : [expediteur du document si c'est une contravention ca sera le destinataire]
-                'recapitulatif': [Un recapitulatif du document qui servira plus tard pour une recherche semanti]
+                'recapitulatif': [Un recapitulatif du document qui servira plus tard pour une recherche semantinque]
                 'google_calendar':[deadline qui est sensé etre dans 'recapitulatif' s'il y'en a une sinon None]
                 Le format de la date est d/m/y, le format de tes outputs sauuf pour récapilatif devront être en miniscule sans accents pour faciliter le storage dans le bon directory. Utilise ton bon sens quand tu remplis les cases doctype c'est super important si on reçoit deux fois le même type de document il est primordiale d'avoir la bonne réponse pour savoir où ranger le document.
                 N'utilise surtout pas de guillemets dans tes mots si ce n'est pour formet un string python. Par exemple tu ecrira avec les mots comme s'appeler en tant que s_appeler
