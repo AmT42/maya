@@ -341,7 +341,9 @@ def search_documents(request: Request,
         raise HTTPException(status_code = 404, detail = "Document not found")
     try: 
         retrieved_info = chroma_db.similarity_search(query)[:top_k]
+        logging.info("retrieved_info %s",retrieved_info)
         retrieved_ids = [doc.metadata["id"] for doc in retrieved_info]
+        logging.info("retrieved_ids %s",retrieved_ids)
         documents = doc_query.filter(Document.id.in_(retrieved_ids)).all()
 
         if not documents:
