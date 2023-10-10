@@ -10,6 +10,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -33,6 +34,14 @@ import logging
 logger = logging.getLogger(__name__) 
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins = ["*"],
+    allow_credentials = True,
+    allow_methods = ["*"],
+    allow_headers = ["*"]
+)
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 TEMP_STORAGE = settings.TEMP_STORAGE
@@ -77,6 +86,7 @@ def register_user(username: str, email: str, password: str, db: Session = Depend
 @app.post("/login")
 def login(username:str = Form(...), password: str = Form(), db: Session = Depends(get_db)):
     logger.info("LOGS")
+    logger.info(f"Username: {username}, Password: {password}")
     user = db.query(User).filter(User.username == username).first()
     if not user: 
         raise HTTPException(status_code = 400, detail="Invalid username or password")
