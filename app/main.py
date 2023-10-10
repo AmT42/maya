@@ -66,8 +66,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db : Session = Depends
         raise HTTPException(status_code=401, detail = "Invalid token")
     return user
 
-@app.post("/register/")
-def register_user(username: str, email: str, password: str, db: Session = Depends(get_db)):
+@app.post("/register")
+def register_user(username: str = Form(...), email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == username).first()
     if user: 
         raise HTTPException(status_code = 400, detail = "User is already registered")
