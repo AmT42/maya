@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { View, TextInput, Button, Text, ActivityIndicator } from 'react-native';
 import axios from 'axios';
-import { styles } from './styles'; 
+import { styles } from '../styles'; 
 import { TouchableOpacity } from 'react-native-gesture-handler';
+import { useUser } from "../contexts/UserContext"; 
 
 const LoginScreen = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState('');
   const [error, setError] = useState('');
+  const { setUser } = useUser();
 
   const handleLogin = async () => {
     setIsLoading(true); // when user presses the button, start the loading indicator
@@ -25,6 +27,8 @@ const LoginScreen = ({ navigation }) => {
 
       setIsLoading(false); //stop the loading indicator
       console.log(response.data);
+      setUser(response.data.user);
+      navigation.navigate("UserProfile");
       // Handle successful login here (e.g., navigate to the next screen)
     } catch (error) {
       setIsLoading(false);
@@ -56,6 +60,9 @@ const LoginScreen = ({ navigation }) => {
       </TouchableOpacity>
       <TouchableOpacity style={styles.buttonContainer} onPress={() => navigation.navigate('Register')}>
         <Text style={styles.buttonText}>Go to Register</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.buttonContainer} onPress={() => navigation.navigate('UserProfile')}>
+        <Text style={styles.buttonText}>Profile</Text>
       </TouchableOpacity>
     </View>
   );

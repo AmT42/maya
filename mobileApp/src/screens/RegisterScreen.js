@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, TextInput, Button, Text, ActivityIndicator } from 'react-native';
-import { styles } from './styles'; 
+import { styles } from '../styles'; 
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import axios from 'axios';
 
