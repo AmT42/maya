@@ -1,13 +1,12 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { styles } from '../styles';
+import { useUser } from '../contexts/UserContext';
 
 const UserProfile = ({ navigation }) => {
   // Replace the below object with actual user data fetched from the backend.
-  const user = {
-    name: 'John Doe',
-    email: 'john@example.com',
-  };
+  const { user, setUser } = useUser();
+  console.log("BALUT", user)
 
   return (
     <View style={styles.container}>

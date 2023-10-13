@@ -4,6 +4,8 @@ import axios from 'axios';
 import { styles } from '../styles'; 
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { useUser } from "../contexts/UserContext"; 
+import { fetchUserInfo } from '../utils/FetchUserInfo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LoginScreen = ({ navigation }) => {
   const [userName, setUserName] = useState('');
@@ -17,7 +19,6 @@ const LoginScreen = ({ navigation }) => {
     setError(''); // reset any previous errors
     try {
       const formData = `username=${userName}&password=${password}`;
-      console.log('FormData:', formData);
 
       const response = await axios.post('http://10.0.2.2:8000/login', formData, {
         headers: {
@@ -25,16 +26,18 @@ const LoginScreen = ({ navigation }) => {
         },
       });
 
-      setIsLoading(false); //stop the loading indicator
-      console.log(response.data);
+      await AsyncStorage.setItem("access_token", response.data.access_token);
+      await AsyncStorage.setItem("refresh_token", response.data.refresh_token);
+
+      fetchUserInfo(setUser, navigation);
       setUser(response.data.user);
-      navigation.navigate("UserProfile");
-      // Handle successful login here (e.g., navigate to the next screen)
+      navigation.navigate("UserProfile");// Handle successful login here (e.g., navigate to the next screen)
     } catch (error) {
       setIsLoading(false);
-      console.error('Error Response:', error.response.data);
+      console.error('Error during login:', error.response?.data || error.message);
       setError("An error occured during login. ") // show an error message
-      // Handle error (e.g., show an error message)
+    } finally {
+      setIsLoading(false);
     }
   };
 
