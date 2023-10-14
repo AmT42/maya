@@ -10,6 +10,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -33,6 +34,14 @@ import logging
 logger = logging.getLogger(__name__) 
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins = ["*"],
+    allow_credentials = True,
+    allow_methods = ["*"],
+    allow_headers = ["*"]
+)
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 TEMP_STORAGE = settings.TEMP_STORAGE
@@ -57,8 +66,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db : Session = Depends
         raise HTTPException(status_code=401, detail = "Invalid token")
     return user
 
-@app.post("/register/")
-def register_user(username: str, email: str, password: str, db: Session = Depends(get_db)):
+@app.post("/register")
+def register_user(username: str = Form(...), email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == username).first()
     if user: 
         raise HTTPException(status_code = 400, detail = "User is already registered")
@@ -71,12 +80,19 @@ def register_user(username: str, email: str, password: str, db: Session = Depend
     hashed_password = hash_password(password)
     new_user = User(username=username, email = email, hashed_password = hashed_password)
     db.add(new_user)
+
+    access_token = create_access_token({"sub": username})
+    refresh_token = create_refresh_token({"sub": username})
+
+    new_user.refresh_token = refresh_token
+
     db.commit()
-    return {"message" : "User created successfully!"}
+    return {"access_token": access_token, "refresh_token": refresh_token, "message": "User created successfully!"}
 
 @app.post("/login")
 def login(username:str = Form(...), password: str = Form(), db: Session = Depends(get_db)):
     logger.info("LOGS")
+    logger.info(f"Username: {username}, Password: {password}")
     user = db.query(User).filter(User.username == username).first()
     if not user: 
         raise HTTPException(status_code = 400, detail="Invalid username or password")

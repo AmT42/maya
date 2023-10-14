@@ -10,7 +10,6 @@ app/alembic.ini
 server.htpasswd
 test/*.json
 node_modules
-mobile_app/
 
 # Dependency directories
 mobile_app/node_modules/
