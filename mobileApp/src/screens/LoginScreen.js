@@ -45,28 +45,20 @@ const LoginScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Text style={styles.title}>Login</Text>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      <TextInput
-        style={styles.textInput}
-        placeholder="Username"
-        value={userName}
-        onChangeText={setUserName}
-      />
-      <TextInput
-        style={styles.textInput}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      <TouchableOpacity style={styles.buttonContainer} onPress={handleLogin} disabled={isLoading}>
-        {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Login</Text>}
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.buttonContainer} onPress={() => navigation.navigate('Register')}>
-        <Text style={styles.buttonText}>Go to Register</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.buttonContainer} onPress={() => navigation.navigate('UserProfile')}>
-        <Text style={styles.buttonText}>Profile</Text>
-      </TouchableOpacity>
+
+      <TextInput style={styles.textInput} placeholder="Username" value={userName} onChangeText={setUserName} />
+      <TextInput style={styles.textInput} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry/> 
+
+      {isLoading ? 
+        <ActivityIndicator size = "large" color="#4E9FDF" style = {{marginVertical: 20}} />:
+        <>
+        <TouchableOpacity style={styles.primaryButtonContainer} onPress={handleLogin}>
+          <Text style={styles.buttonText}>Login</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.secondaryButtonContainer} onPress={() => navigation.navigate("Register") }>
+          <Text style={styles.secondaryButtonText}>Don't have an account? Register </Text>
+        </TouchableOpacity>
+        </>}
     </View>
   );
 };

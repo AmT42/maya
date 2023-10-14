@@ -6,7 +6,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#F5F5F5', // a light grey background color that's easy on the eyes
+    backgroundColor: '#F5F5F5',
   },
   title: {
     fontSize: 26,
@@ -25,7 +25,7 @@ export const styles = StyleSheet.create({
   },
   buttonContainer: {
     width: '100%',
-    height: 50,
+    height: 40,
     marginTop: 12,
     backgroundColor: '#4E9FDF', // choose a color that suits your app's overall design
     justifyContent: 'center',
@@ -43,5 +43,26 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 20,
     fontWeight: '400',
+  },
+  primaryButtonContainer: {
+    width: '100%',
+    height: 30,
+    marginTop: 20,
+    marginBottom: 10,
+    paddingLeft:5,
+    paddingRight:5,
+    backgroundColor: '#4E9FDF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 4,
+    elevation: 2,
+  },
+  secondaryButtonContainer: {
+    marginTop: 5,
+  },
+  secondaryButtonText: {
+    color: '#4E9FDF',
+    fontSize: 16,
+    textDecorationLine: 'underline',
   },
 });
