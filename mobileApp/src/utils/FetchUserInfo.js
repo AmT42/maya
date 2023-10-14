@@ -10,9 +10,9 @@ export const fetchUserInfo = async (setUser, navigation) => {
                 Authorization: `Bearer ${token}`,
             },
         });
-        // console.log("SALUT", response.data)
+
         setUser(response.data); // Set user data in global context
-        // console.log("BALUT",user)
+
         console.log("Salut", response.data)
         navigation.navigate("UserProfile");
 
