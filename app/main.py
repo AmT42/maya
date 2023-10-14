@@ -80,8 +80,14 @@ def register_user(username: str = Form(...), email: str = Form(...), password: s
     hashed_password = hash_password(password)
     new_user = User(username=username, email = email, hashed_password = hashed_password)
     db.add(new_user)
+
+    access_token = create_access_token({"sub": username})
+    refresh_token = create_refresh_token({"sub": username})
+
+    new_user.refresh_token = refresh_token
+
     db.commit()
-    return {"message" : "User created successfully!"}
+    return {"access_token": access_token, "refresh_token": refresh_token, "message": "User created successfully!"}
 
 @app.post("/login")
 def login(username:str = Form(...), password: str = Form(), db: Session = Depends(get_db)):

@@ -29,8 +29,8 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem("access_token", response.data.access_token);
       await AsyncStorage.setItem("refresh_token", response.data.refresh_token);
 
-      fetchUserInfo(setUser, navigation);
-      setUser(response.data.user);
+      await fetchUserInfo(setUser, navigation);
+      // setUser(response.data.user);
       navigation.navigate("UserProfile");// Handle successful login here (e.g., navigate to the next screen)
     } catch (error) {
       setIsLoading(false);

@@ -3,6 +3,9 @@ import { View, TextInput, Button, Text, ActivityIndicator } from 'react-native';
 import { styles } from '../styles'; 
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { fetchUserInfo } from '../utils/FetchUserInfo';
+import { useUser } from '../contexts/UserContext';
 
 const RegisterScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
@@ -11,11 +14,9 @@ const RegisterScreen = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState('');
   const [error, setError] = useState('');
+  const { setUser } = useUser();
 
   const handleRegister = async () => {
-    // First, validate the fields. For instance, check if the password and confirmPassword are the same.
-    // If validation fails, display an appropriate error message.
-    // Otherwise, proceed with sending the data to your backend.
     setIsLoading(true);
     setError('');
 
@@ -26,7 +27,6 @@ const RegisterScreen = ({ navigation }) => {
     }
 
     try {
-      // Construct form data
       const formData = `username=${username}&email=${email}&password=${password}`;
 
       const response = await axios.post('http://10.0.2.2:8000/register', formData, {
@@ -34,14 +34,20 @@ const RegisterScreen = ({ navigation }) => {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       });
-      setIsLoading(false);
-      console.log("Response: ", response.data);
-      // If registration is successful, you might want to navigate the user to the login screen or directly log them in.
+      console.log("response", response)
+      await AsyncStorage.setItem("access_token", response.data.access_token);
+      await AsyncStorage.setItem("refresh_token", response.data.refresh_token);
+
+      await fetchUserInfo(setUser, navigation)
+
+      navigation.navigate("UserProfile");
     } catch (error) {
       setIsLoading(false);
       console.error('Registration Error: ', error.response.data);
       setError("An error occured during registration. ")
       // Handle error by showing appropriate message to the user.
+    } finally {
+      setIsLoading(false);
     }
   };
 
