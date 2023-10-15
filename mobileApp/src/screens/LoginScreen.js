@@ -43,20 +43,20 @@ const LoginScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
+      <Text style={styles.title}>Connection</Text>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      <TextInput style={styles.textInput} placeholder="Username" value={userName} onChangeText={setUserName} />
-      <TextInput style={styles.textInput} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry/> 
+      <TextInput style={styles.textInput} placeholder="Nom de compte" value={userName} onChangeText={setUserName} />
+      <TextInput style={styles.textInput} placeholder="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry/> 
 
       {isLoading ? 
         <ActivityIndicator size = "large" color="#4E9FDF" style = {{marginVertical: 20}} />:
         <>
         <TouchableOpacity style={styles.primaryButtonContainer} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Login</Text>
+          <Text style={styles.buttonText}>Se connecter</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.secondaryButtonContainer} onPress={() => navigation.navigate("Register") }>
-          <Text style={styles.secondaryButtonText}>Don't have an account? Register </Text>
+          <Text style={styles.secondaryButtonText}>Tu n'as encore pas de compte? Inscris toi</Text>
         </TouchableOpacity>
         </>}
     </View>

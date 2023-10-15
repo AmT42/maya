@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
 import { styles as globalStyles } from '../styles';
 import { useUser } from '../contexts/UserContext';
+import  AddNewDoc  from '../components/AddNewDoc'
 
 const UserProfile = ({ navigation }) => {
   // Replace the below object with actual user data fetched from the backend.
@@ -11,25 +13,18 @@ const UserProfile = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      
-      {/* App Logo */}
       <Image source={require('../assets/mayaLogo.png')} style={styles.logo} />
 
-      {/* User Profile Info */}
       <Text style={styles.title}>Profile</Text>
-      <Text style={styles.userInfo}>Name: {user.username}</Text>
-      <Text style={styles.userInfo}>Email: {user.email}</Text>
+      <Text style={styles.userInfo}>{user.username}</Text>
+      <Text style={styles.userInfo}>{user.email}</Text>
 
-      {/* View Documents Button */}
+
       <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Documents')}>
         <Text style={styles.buttonText}>View Documents</Text>
       </TouchableOpacity>
 
-      {/* Floating Action Button for Document Actions */}
-      {/* You can replace this with an actual icon or another component that displays a '+' sign or something similar. */}
-      <TouchableOpacity style={styles.fab} onPress="">
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      <AddNewDoc/>
       
     </View>
   );
@@ -75,6 +70,29 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   fabText: {
+    color: '#FFF',
+    fontSize: 24
+  },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#4E9FDF',
+    backgroundColor: '#4E9FDF',
+    borderRadius: 50, 
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+  },
+  actionButton: {
+    width: 45,
+    height: 45,
+    // backgroundColor: '#4E9FDF',
+    borderRadius: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 3,
+  },
+  actionButtonText: {
     color: '#FFF',
     fontSize: 24
   }
