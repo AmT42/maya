@@ -66,7 +66,9 @@ class ChatGpt:
                 'google_calendar':[deadline qui est sensé etre dans 'recapitulatif' s'il y'en a une sinon None]
                 Le format de la date est d/m/y, le format de tes outputs sauuf pour récapilatif devront être en miniscule sans accents pour faciliter le storage dans le bon directory. Utilise ton bon sens quand tu remplis les cases doctype c'est super important si on reçoit deux fois le même type de document il est primordiale d'avoir la bonne réponse pour savoir où ranger le document.
                 N'utilise surtout pas de guillemets dans tes mots si ce n'est pour formet un string python. Par exemple tu ecrira avec les mots comme s'appeler en tant que s_appeler
-                En cas de doute ou si une information est inconnue, n'hésite pas à indiquer "N/A". Par exemple, expediteur: "N/A". Surtout ton output devra être basé sur le text que tu reçois et non sur le text de l'example que je te fournis. 
+                En cas de doute ou si une information est inconnue, n'hésite pas à indiquer "N/A". Par exemple, expediteur: "N/A". Surtout ton output devra être basé sur le text que tu reçois et non sur le text de l'example que je te fournis.
+
+                surtout ta réponse ne doit pas prendre en consideration les informations dans l'exemple et cela en aucun cas 
                 """ 
         else:
             self.prefix = prefix
@@ -110,7 +112,7 @@ class ChatGpt:
                 response = eval(response)
                 i=6
             except:
-                response = chain.predict(requête="Je n'ai pas pu faire eval(ta réponse) il y'a surement un mauvais formatage, peux-tu corriger ton erreur")   
+                response = chain.predict(requête="Je n'ai pas pu faire eval(ta réponse) il y'a surement un mauvais formatage, peux-tu corriger ton erreur. surtout ta réponse ne doit pas prendre en consideration les informations dans l'exemple et cela en aucun cas")   
                 i += 1
         if i==5:
             print("couldnt output right format")

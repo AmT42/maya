@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, Button, Text, ActivityIndicator } from 'react-native';
+import { View, TextInput, Text, ActivityIndicator } from 'react-native';
 import axios from 'axios';
 import { styles } from '../styles'; 
 import { TouchableOpacity } from 'react-native-gesture-handler';
@@ -17,15 +17,16 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     setIsLoading(true); // when user presses the button, start the loading indicator
     setError(''); // reset any previous errors
+    console.log("HERE")
     try {
       const formData = `username=${userName}&password=${password}`;
-
-      const response = await axios.post('http://10.0.2.2:8000/login', formData, {
+      // http://192.168.1.16:8000/ or http://10.0.2.2:8000/ http://172.20.10.2:8000
+      const response = await axios.post('http://192.168.1.16:8000/login', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       });
-
+      console.log("HERE TOO")
       await AsyncStorage.setItem("access_token", response.data.access_token);
       await AsyncStorage.setItem("refresh_token", response.data.refresh_token);
 
