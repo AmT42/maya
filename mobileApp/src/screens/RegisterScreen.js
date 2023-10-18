@@ -29,7 +29,7 @@ const RegisterScreen = ({ navigation }) => {
     try {
       const formData = `username=${username}&email=${email}&password=${password}`;
 
-      const response = await axios.post('http://10.0.2.2:8000/register', formData, {
+      const response = await axios.post('http://192.168.1.16:8000/register', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -52,20 +52,27 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Registration</Text>
-      {error ? <Text style = {styles.errorText}>{error}</Text> : null}
-      <TextInput style={styles.textInput} placeholder="Username" value={username} onChangeText={setUsername} />
-      <TextInput style={styles.textInput} placeholder="Email" value={email} onChangeText={setEmail} />
-      <TextInput style={styles.textInput} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry />
-      <TextInput style={styles.textInput} placeholder="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
-      <TouchableOpacity style={styles.buttonContainer} onPress={handleRegister} disabled={isLoading}>
-        {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Registration</Text>}
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.buttonContainer} onPress={() => navigation.navigate('Login')}>
-        <Text style={styles.buttonText}>Go to Login</Text>
-      </TouchableOpacity>
-    </View>
+     <View style={styles.container}>
+    <Text style={styles.title}>Inscription</Text>
+    {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+    <TextInput style={styles.textInput} placeholder="Nom de compte" value={username} onChangeText={setUsername} />
+    <TextInput style={styles.textInput} placeholder="Email" value={email} onChangeText={setEmail} />
+    <TextInput style={styles.textInput} placeholder="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry />
+    <TextInput style={styles.textInput} placeholder="Confirme ton mot de passe" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
+
+    {isLoading ? 
+      <ActivityIndicator size="large" color="#4E9FDF" style={{ marginVertical: 20 }} /> :
+      <>
+        <TouchableOpacity style={styles.primaryButtonContainer} onPress={handleRegister}>
+          <Text style={styles.buttonText}>S'inscrire</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.secondaryButtonContainer} onPress={() => navigation.navigate('Login')}>
+          <Text style={styles.secondaryButtonText}>T'as deja un compte? Connecte-toi</Text>
+        </TouchableOpacity>
+      </>
+    }
+  </View>
   );
 };
 

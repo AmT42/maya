@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, Button, Text, ActivityIndicator } from 'react-native';
+import { View, TextInput, Text, ActivityIndicator } from 'react-native';
 import axios from 'axios';
 import { styles } from '../styles'; 
 import { TouchableOpacity } from 'react-native-gesture-handler';
@@ -17,15 +17,16 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     setIsLoading(true); // when user presses the button, start the loading indicator
     setError(''); // reset any previous errors
+    console.log("HERE")
     try {
       const formData = `username=${userName}&password=${password}`;
-
-      const response = await axios.post('http://10.0.2.2:8000/login', formData, {
+      // http://192.168.1.16:8000/ or http://10.0.2.2:8000/ http://172.20.10.2:8000
+      const response = await axios.post('http://192.168.1.16:8000/login', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
       });
-
+      console.log("HERE TOO")
       await AsyncStorage.setItem("access_token", response.data.access_token);
       await AsyncStorage.setItem("refresh_token", response.data.refresh_token);
 
@@ -43,30 +44,22 @@ const LoginScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
+      <Text style={styles.title}>Connection</Text>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
-      <TextInput
-        style={styles.textInput}
-        placeholder="Username"
-        value={userName}
-        onChangeText={setUserName}
-      />
-      <TextInput
-        style={styles.textInput}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-      <TouchableOpacity style={styles.buttonContainer} onPress={handleLogin} disabled={isLoading}>
-        {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Login</Text>}
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.buttonContainer} onPress={() => navigation.navigate('Register')}>
-        <Text style={styles.buttonText}>Go to Register</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.buttonContainer} onPress={() => navigation.navigate('UserProfile')}>
-        <Text style={styles.buttonText}>Profile</Text>
-      </TouchableOpacity>
+
+      <TextInput style={styles.textInput} placeholder="Nom de compte" value={userName} onChangeText={setUserName} />
+      <TextInput style={styles.textInput} placeholder="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry/> 
+
+      {isLoading ? 
+        <ActivityIndicator size = "large" color="#4E9FDF" style = {{marginVertical: 20}} />:
+        <>
+        <TouchableOpacity style={styles.primaryButtonContainer} onPress={handleLogin}>
+          <Text style={styles.buttonText}>Se connecter</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.secondaryButtonContainer} onPress={() => navigation.navigate("Register") }>
+          <Text style={styles.secondaryButtonText}>Tu n'as encore pas de compte? Inscris toi</Text>
+        </TouchableOpacity>
+        </>}
     </View>
   );
 };
