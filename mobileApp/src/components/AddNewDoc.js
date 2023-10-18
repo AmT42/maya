@@ -5,7 +5,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import ValidationModal from '../utils/ValidationModal'; // Modify this based on your path
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from  '@react-native-async-storage/async-storage';
 
 const AddNewDoc = () => {
 
