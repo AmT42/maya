@@ -8,9 +8,10 @@ import traceback
 from typing import Optional 
 from uuid import UUID
 
-from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body
+from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body,Query 
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -30,6 +31,8 @@ from services.chroma_db.db import get_chroma_db, get_chroma_db_json, text_splitt
 from utils.date_fmt import convert_date_format
 
 import logging
+from pathlib import Path
+import os 
 
 logger = logging.getLogger(__name__) 
 
@@ -45,6 +48,9 @@ app.add_middleware(
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 TEMP_STORAGE = settings.TEMP_STORAGE
+BASE_DIR = Path(__file__).parent
+image_dir = os.path.join(BASE_DIR, "storage")
+app.mount("/storage", StaticFiles(directory=image_dir), name="storage")
 
 limiter = Limiter(key_func = get_remote_address)
 app.state.limiter = limiter
@@ -57,7 +63,13 @@ def get_db():
         yield db 
     finally:
         db.close()
-
+# @app.get("/images/{image_name}")
+# async def serve_image(image_name: str):
+#     image_path = os.path.join(BASE_DIR, image_name)
+#     logging.info(f'Image_path :{image_path}')
+#     if not image_path.exists():
+#         raise HTTPException(status_code=404, detail="Image not found")
+#     return FileResponse(image_path)
 
 def get_current_user(token: str = Depends(oauth2_scheme), db : Session = Depends(get_db)):
     payload = verify_token(token)
@@ -124,7 +136,6 @@ def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
 
-import logging 
 @app.post("/upload")
 @limiter.limit("5/minute")
 def upload_document(request: Request, 
@@ -270,8 +281,8 @@ def validate(request: Request,
         db.close()
 
 @limiter.limit("30/minute")
-@app.get("/user/documents")
-def get_user_documents(request: Request,
+@app.get("/user/documents_filter")
+def get_user_documents_filter(request: Request,
                        current_user = Depends(get_current_user), 
                        doctype: Optional[str] = None,
                        date: Optional[str] = None,
@@ -304,6 +315,83 @@ def get_user_documents(request: Request,
         logger.error(traceback.format_exc())
         raise HTTPException(status_code = 500, detail = "An unexpected error occured")
 
+@app.get("/user/documents")
+async def get_user_documents(
+        request: Request,
+        current_user: User = Depends(get_current_user),
+        path: Optional[str] = Query(None, alias="path"),
+        db: Session = Depends(get_db)):
+
+    # Split the provided path into its components
+    path_components = path.split('/') if path else []
+    # Query based on the number of path components
+    doc_query = db.query(Document).filter(Document.user_id == current_user.id)
+    if len(path_components) > 0:
+        doc_query = doc_query.filter(Document.doctype == path_components[0])
+    if len(path_components) > 1:
+        doc_query = doc_query.filter(Document.expediteur == path_components[1])
+
+    # If we have two components (doctype, expediteur), we're at the document level
+    if len(path_components) == 2:
+        documents = doc_query.all()  # Get all documents for the specified doctype and expediteur
+        response = [{
+            "id": doc.id,
+            "file_path": doc.file_path,
+            "doctype": doc.doctype,
+            "date": doc.date,
+            "expediteur": doc.expediteur,
+            "recapitulatif": doc.recapitulatif,
+            "google_calendar": doc.google_calendar
+        } for doc in documents]
+        return response
+
+    # If we have three components (doctype, expediteur, date), we're looking for a specific document
+    elif len(path_components) == 3:
+        documents = doc_query.filter(Document.date == path_components[2]).all()
+        response = [{
+            "id": doc.id,
+            "file_path": doc.file_path,
+            "doctype": doc.doctype,
+            "date": doc.date,
+            "expediteur": doc.expediteur,
+            "recapitulatif": doc.recapitulatif,
+            "google_calendar": doc.google_calendar
+        } for doc in documents]
+        return response
+
+    # Otherwise, we're at a folder level. Aggregate the data accordingly.
+    else:
+        folder_data = {}
+        if len(path_components) < 1:
+            # At the root level, aggregate by doctype
+            folder_data = db.query(Document.doctype).distinct().all()
+        elif len(path_components) < 2:
+            # At the doctype level, aggregate by expediteur
+            folder_data = doc_query.with_entities(Document.expediteur).distinct().all()
+
+        # Transform folder data into a list of folder names
+        response = [item[0] for item in folder_data]
+        return response
+
+@app.get("/user/document_ids")
+def get_user_document_ids(current_user = Depends(get_current_user), 
+                          db = Depends(get_db)):
+    # Fetch distinct document IDs for the user
+    doc_ids = db.query(Document.id).filter(Document.user_id == current_user.id).distinct().all()
+    return [doc_id[0] for doc_id in doc_ids]
+
+@app.get("/user/doctypes")
+def get_user_doctypes(current_user = Depends(get_current_user), db = Depends(get_db)):
+    # Fetch distinct doctypes for the user
+    doctypes = db.query(Document.doctype).filter(Document.user_id == current_user.id).distinct().all()
+    return [doctype[0] for doctype in doctypes]
+
+@app.get("/user/expediteurs")
+def get_user_expediteurs(doctype: str, current_user = Depends(get_current_user), db = Depends(get_db)):
+    # Fetch distinct expediteurs for a specific doctype of the user
+    expediteurs = db.query(Document.expediteur).filter(Document.user_id == current_user.id, Document.doctype == doctype).distinct().all()
+    return [expediteur[0] for expediteur in expediteurs]
+    
 @app.delete("/user/documents/{doc_id}")
 def delete_document(doc_id: UUID, 
                     current_user = Depends(get_current_user), 
