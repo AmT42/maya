@@ -89,8 +89,8 @@ const DocumentScreen = ({ navigation }) => {
     };
 
     const handleImageClick = (imagePath) => {
-        console.log("Select Image Path: ", imagePath);
-        setSelectedImage(imagePath);
+        const fullImagePath = `http://192.168.1.16:8000/${encodeURIComponent(imagePath.replace('/storage/', ''))}`;
+        setSelectedImage(fullImagePath);
         setModalVisible(true);
     };
     return (
