@@ -9,7 +9,7 @@ const UserProfile = ({ navigation }) => {
   // const { user, setUser } = useUser();
   const { user }  = useUser();
   // console.log("BALUT", user)emre
-
+  console.log("navigation1", navigation)
   return (
     <View style={styles.container}>
       <Image source={require('../assets/mayaLogo.png')} style={styles.logo} />
