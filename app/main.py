@@ -63,13 +63,6 @@ def get_db():
         yield db 
     finally:
         db.close()
-# @app.get("/images/{image_name}")
-# async def serve_image(image_name: str):
-#     image_path = os.path.join(BASE_DIR, image_name)
-#     logging.info(f'Image_path :{image_path}')
-#     if not image_path.exists():
-#         raise HTTPException(status_code=404, detail="Image not found")
-#     return FileResponse(image_path)
 
 def get_current_user(token: str = Depends(oauth2_scheme), db : Session = Depends(get_db)):
     payload = verify_token(token)

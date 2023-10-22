@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, Modal, Button } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { FetchDocuments } from '../utils/FetchDocuments';
+import AddNewDoc from '../components/AddNewDoc';
 
 const DocumentScreen = ({ navigation }) => {
     const [currentPath, setCurrentPath] = useState([]);
@@ -59,12 +60,19 @@ const DocumentScreen = ({ navigation }) => {
         }
     };
     
-    const renderItem = ({ item }) => {
+    const renderItem = ({ item, index }) => {
         console.log("ITEM", item)
         console.log("currentPath.length < 2", currentPath.length < 2)
+        const isLastOddItem = (index === data.length -1) && (data.length % 2 != 0);
         if (currentPath.length < 2) {
             return (
-                <TouchableOpacity style={styles.folderContainer} onPress={() => handlePress(item)}>
+                <TouchableOpacity 
+                    style={[
+                        styles.folderContainer,
+                        isLastOddItem ? { marginRight: '50%' } : {}
+                    ]} 
+                    onPress={() => handlePress(item)}
+                >
                     <Icon name="folder" style={styles.folderIcon} />
                     <Text style={styles.folderLabel}>{item}</Text>
                 </TouchableOpacity>
@@ -130,6 +138,8 @@ const DocumentScreen = ({ navigation }) => {
                     <Button title="Close" onPress={() => setModalVisible(false)} />
                 </View>
             </Modal>
+
+            <AddNewDoc/>
         </View>
     );
 };
