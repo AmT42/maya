@@ -15,6 +15,7 @@ const DocumentScreen = ({ navigation }) => {
     const [isModalVisible, setModalVisible] = useState(false); // Control the visibility of the image modal
     const [selectedImage, setSelectedImage] = useState(null); // Store the currently selected image's path
     const [searchResults, setSearchResults] = useState(null);
+    const [inSearchMode, setInSearchMode] = useState(false);
 
     const fetchSearchResults = async (query) => {
         try {
@@ -36,6 +37,7 @@ const DocumentScreen = ({ navigation }) => {
         console.log(query)
         const results = await fetchSearchResults(query);
         setSearchResults(results);
+        setInSearchMode(true);
     };
 
     useEffect(() => {
@@ -70,6 +72,7 @@ const DocumentScreen = ({ navigation }) => {
         } else {
             handleImageClick(item.file_path)
         }
+        setInSearchMode(false); // Exit search mode when opening a folder
     };
 
     const handleBreadcrumb = (index) => {
@@ -80,11 +83,27 @@ const DocumentScreen = ({ navigation }) => {
             let newPath = currentPath.slice(0, index + 1);
             setCurrentPath(newPath);
         }
+        setInSearchMode(false);
     };
     
     const renderItem = ({ item, index }) => {
         const isLastOddItem = (index === data.length -1) && (data.length % 2 != 0);
-        if (currentPath.length < 2) {
+        if (inSearchMode) {
+            return (
+                <TouchableOpacity onPress={() => handlePress(item)}  style={styles.touchableContainer}>
+                    <View style={styles.documentItemContainer}>
+                        <Image
+                            source={{ uri: `http://192.168.1.16:8000/${encodeURIComponent(item.file_path.replace('/storage/', ''))}` }}
+                            style={styles.imageStyle}
+                            onError={(error) => {
+                                console.error("Image loading error:", error);
+                            }}
+                        />
+                        <Text style={styles.dateText}>{new Date(item.date).toLocaleDateString()}</Text>
+                    </View>
+                </TouchableOpacity>
+            );
+        } else if (currentPath.length < 2) {
             return (
                 <TouchableOpacity 
                     style={[
@@ -136,7 +155,7 @@ const DocumentScreen = ({ navigation }) => {
             </View>
 
             <FlatList
-                data={currentPath.length < 2 ? data : imageData}
+                data={inSearchMode ? searchResults : (currentPath.length < 2 ? data : imageData)}
                 renderItem={renderItem}
                 keyExtractor={(item, index) => index.toString()}
                 numColumns={2}

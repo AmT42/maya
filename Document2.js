@@ -4,6 +4,8 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import { FetchDocuments } from '../utils/FetchDocuments';
 import AddNewDoc from '../components/AddNewDoc';
 import SearchBar from '../components/SearchBar';
+import DocumentImageScreen from './DocumentImageScreen';
+import Breadcrumb from '../components/Breadcrumb';
 import axios from 'axios';
 import AsyncStorage from  '@react-native-async-storage/async-storage';
 
@@ -125,24 +127,20 @@ const DocumentScreen = ({ navigation }) => {
         <View style={[styles.container, {paddingHorizotal: 20}]}>
             <SearchBar onSearch={handleSearch} />
 
-            <View style={styles.breadcrumbContainer}>
-                {currentPath && currentPath.length > 0 && currentPath.map((segment, index) => (
-                    <TouchableOpacity key={index} onPress={() => handleBreadcrumb(index)} style={styles.breadcrumbTouchable}>
-                        <Text style={styles.breadcrumbText}>
-                            {segment}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
+            <Breadcrumb currentPath={currentPath} handleBreadcrumb={handleBreadcrumb} />
 
-            <FlatList
-                data={currentPath.length < 2 ? data : imageData}
-                renderItem={renderItem}
-                keyExtractor={(item, index) => index.toString()}
-                numColumns={2}
-                style={styles.listStyle}
-                contentContainerStyle={styles.listContentStyle}
-            />
+            {currentPath.length < 2 ? (
+                <FlatList
+                    data={data}
+                    renderItem={renderItem}
+                    keyExtractor={(item, index) => index.toString()}
+                    numColumns={2}
+                    style={styles.listStyle}
+                    contentContainerStyle={styles.listContentStyle}
+                />
+            ) : (
+                <DocumentImageScreen data={imageData} handleImageClick={handleImageClick} />
+            )}
 
             <Modal
                 visible={isModalVisible}

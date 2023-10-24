@@ -35,7 +35,7 @@ const AddNewDoc = () => {
         });
         const token = await AsyncStorage.getItem("access_token");
         console.log("TOKEN",token)
-        const response = await axios.post('http://192.168.1.16:8000/upload', formData,{
+        const response = await axios.post('http://172.20.10.2:8000/upload', formData,{
           headers: {
             'Content-Type': 'multipart/form-data',
             'Authorization': `Bearer ${token}`
@@ -66,7 +66,7 @@ const AddNewDoc = () => {
       }
       try {
         const token = await AsyncStorage.getItem("access_token");
-        const response = await axios.post("http://192.168.1.16:8000/validate", payload, {
+        const response = await axios.post("http://172.20.10.2:8000/validate", payload, {
           'Content-Type': 'application/json', 
           'Authorization': `Bearer ${token}`
         })
