@@ -29,7 +29,7 @@ const RegisterScreen = ({ navigation }) => {
     try {
       const formData = `username=${username}&email=${email}&password=${password}`;
 
-      const response = await axios.post('http://192.168.1.16:8000/register', formData, {
+      const response = await axios.post('http://172.20.10.2:8000/register', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },

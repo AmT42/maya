@@ -8,7 +8,7 @@ const DocumentImageList = ({ data, onImagePress }) => {
         <TouchableOpacity onPress={() => onImagePress(item.file_path)} style={styles.touchableContainer}>
             <View style={styles.documentItemContainer}>
                 <Image
-                    source={{ uri: `http://192.168.1.16:8000/${encodeURIComponent(item.file_path.replace('/storage/', ''))}` }}
+                    source={{ uri: `http://172.20.10.2:8000/${encodeURIComponent(item.file_path.replace('/storage/', ''))}` }}
                     style={styles.imageStyle}
                     onError={(error) => {
                         console.error("Image loading error:", error);
