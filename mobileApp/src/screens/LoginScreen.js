@@ -21,7 +21,7 @@ const LoginScreen = ({ navigation }) => {
     try {
       const formData = `username=${userName}&password=${password}`;
       // http://192.168.1.16:8000/ or http://10.0.2.2:8000/ http://172.20.10.2:8000
-      const response = await axios.post('http://192.168.1.16:8000/login', formData, {
+      const response = await axios.post('http://172.20.10.2:8000/login', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },

@@ -3,6 +3,9 @@ import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, Modal, Butto
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { FetchDocuments } from '../utils/FetchDocuments';
 import AddNewDoc from '../components/AddNewDoc';
+import SearchBar from '../components/SearchBar';
+import axios from 'axios';
+import AsyncStorage from  '@react-native-async-storage/async-storage';
 
 const DocumentScreen = ({ navigation }) => {
     const [currentPath, setCurrentPath] = useState([]);
@@ -11,12 +14,35 @@ const DocumentScreen = ({ navigation }) => {
     const [imageData, setImageData] = useState([]); // To store the image data
     const [isModalVisible, setModalVisible] = useState(false); // Control the visibility of the image modal
     const [selectedImage, setSelectedImage] = useState(null); // Store the currently selected image's path
+    const [searchResults, setSearchResults] = useState(null);
+    const [inSearchMode, setInSearchMode] = useState(false);
 
+    const fetchSearchResults = async (query) => {
+        try {
+            token = await AsyncStorage.getItem("access_token");
+            console.log(token)
+            const response = await axios.get(`http://172.20.10.2:8000/user/search?query=${encodeURIComponent(query)}&top_k=2`,{
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            console.log("RÉPONSE",response,)
+            return response.data;
+        } catch (error) {
+            console.error("Error fetching search results:", error);
+        }
+    };
+
+    const handleSearch = async (query) => {
+        console.log(query)
+        const results = await fetchSearchResults(query);
+        setSearchResults(results);
+        setInSearchMode(true);
+    };
 
     useEffect(() => {
         const fetchData = async () => {
             const pathString = currentPath.join('/');
-            console.log("Constructed Path String:", pathString);
             const pathDepth = currentPath.length;
 
             if (cachedData[pathString]) {
@@ -27,7 +53,6 @@ const DocumentScreen = ({ navigation }) => {
                 }
             } else {
                 const documents = await FetchDocuments({ path: currentPath });
-                console.log("documents", documents)
                 if (pathDepth < 2) {
                     setData(documents);
                 } else {
@@ -45,9 +70,9 @@ const DocumentScreen = ({ navigation }) => {
         if (currentPath.length < 2) {
             setCurrentPath([...currentPath, item]);  // Set currentPath to the selected document type
         } else {
-            console.log("Image File Path in renderItem:", item.file_path);
             handleImageClick(item.file_path)
         }
+        setInSearchMode(false); // Exit search mode when opening a folder
     };
 
     const handleBreadcrumb = (index) => {
@@ -58,13 +83,27 @@ const DocumentScreen = ({ navigation }) => {
             let newPath = currentPath.slice(0, index + 1);
             setCurrentPath(newPath);
         }
+        setInSearchMode(false);
     };
     
     const renderItem = ({ item, index }) => {
-        console.log("ITEM", item)
-        console.log("currentPath.length < 2", currentPath.length < 2)
         const isLastOddItem = (index === data.length -1) && (data.length % 2 != 0);
-        if (currentPath.length < 2) {
+        if (inSearchMode) {
+            return (
+                <TouchableOpacity onPress={() => handlePress(item)}  style={styles.touchableContainer}>
+                    <View style={styles.documentItemContainer}>
+                        <Image
+                            source={{ uri: `http://172.20.10.2:8000/${encodeURIComponent(item.file_path.replace('/storage/', ''))}` }}
+                            style={styles.imageStyle}
+                            onError={(error) => {
+                                console.error("Image loading error:", error);
+                            }}
+                        />
+                        <Text style={styles.dateText}>{new Date(item.date).toLocaleDateString()}</Text>
+                    </View>
+                </TouchableOpacity>
+            );
+        } else if (currentPath.length < 2) {
             return (
                 <TouchableOpacity 
                     style={[
@@ -78,12 +117,11 @@ const DocumentScreen = ({ navigation }) => {
                 </TouchableOpacity>
             );
         } else {
-            console.log("Storage", `http://192.168.1.16:8000/${encodeURIComponent(item.file_path.replace('/storage/', ''))}`)
             return (
                 <TouchableOpacity onPress={() => handlePress(item)}  style={styles.touchableContainer}>
                     <View style={styles.documentItemContainer}>
                         <Image
-                            source={{ uri: `http://192.168.1.16:8000/${encodeURIComponent(item.file_path.replace('/storage/', ''))}` }}
+                            source={{ uri: `http://172.20.10.2:8000/${encodeURIComponent(item.file_path.replace('/storage/', ''))}` }}
                             style={styles.imageStyle}
                             onError={(error) => {
                                 console.error("Image loading error:", error);
@@ -97,13 +135,14 @@ const DocumentScreen = ({ navigation }) => {
     };
 
     const handleImageClick = (imagePath) => {
-        const fullImagePath = `http://192.168.1.16:8000/${encodeURIComponent(imagePath.replace('/storage/', ''))}`;
+        const fullImagePath = `http://172.20.10.2:8000/${encodeURIComponent(imagePath.replace('/storage/', ''))}`;
         setSelectedImage(fullImagePath);
         setModalVisible(true);
     };
     return (
         
         <View style={[styles.container, {paddingHorizotal: 20}]}>
+            <SearchBar onSearch={handleSearch} />
 
             <View style={styles.breadcrumbContainer}>
                 {currentPath && currentPath.length > 0 && currentPath.map((segment, index) => (
@@ -116,7 +155,7 @@ const DocumentScreen = ({ navigation }) => {
             </View>
 
             <FlatList
-                data={currentPath.length < 2 ? data : imageData}
+                data={inSearchMode ? searchResults : (currentPath.length < 2 ? data : imageData)}
                 renderItem={renderItem}
                 keyExtractor={(item, index) => index.toString()}
                 numColumns={2}
