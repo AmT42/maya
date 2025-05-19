@@ -4,8 +4,8 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain import FewShotPromptTemplate
 from langchain.chat_models import ChatOpenAI
-from langchain.chains.conversation.memory import ConversationBufferMemory 
-import json 
+from langchain.chains.conversation.memory import ConversationBufferMemory
+import json
 
 
 class ChatGpt:
@@ -98,26 +98,41 @@ class ChatGpt:
                 prefix=self.prefix,
                 suffix=self.suffix,
                 input_variables=["requête"],
-                # memory = self.memory, 
+                # memory = self.memory,
                 example_separator="\n\n",
                 # verbose = True
             )
+
+    REQUIRED_KEYS = {"doctype", "date", "expediteur", "recapitulatif", "google_calendar"}
+
+    def _parse_response(self, response: str) -> dict:
+        """Parse and validate JSON response from the LLM."""
+        try:
+            data = json.loads(response)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Invalid JSON from model") from exc
+
+        if not isinstance(data, dict) or not self.REQUIRED_KEYS.issubset(data.keys()):
+            raise ValueError("JSON missing required fields")
+
+        return data
     def call_gpt(self, text):
-        llm = ChatOpenAI(temperature = 0, model_name = "gpt-3.5-turbo")
-        chain = LLMChain(llm = llm, prompt = self.few_shot_prompt_template, verbose = False, memory = self.memory)
-        response = chain.predict(requête=text)  
-        i = 0
-        while i<5:
-            try: 
-                response = eval(response)
-                i=6
-            except:
-                response = chain.predict(requête="Je n'ai pas pu faire eval(ta réponse) il y'a surement un mauvais formatage, peux-tu corriger ton erreur. surtout ta réponse ne doit pas prendre en consideration les informations dans l'exemple et cela en aucun cas")   
-                i += 1
-        if i==5:
-            print("couldnt output right format")
-            # sys.exit()
-        return response 
+        llm = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo")
+        chain = LLMChain(
+            llm=llm,
+            prompt=self.few_shot_prompt_template,
+            verbose=False,
+            memory=self.memory,
+        )
+        response = chain.predict(requête=text)
+        for _ in range(5):
+            try:
+                return self._parse_response(response)
+            except ValueError:
+                response = chain.predict(
+                    requête="Je n'ai pas pu lire ta réponse en JSON. Peux-tu corriger le format ?"
+                )
+        raise ValueError("couldnt output right format")
     
     # def json2semantic(self, output_json):
     #     """
