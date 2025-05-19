@@ -1,11 +1,12 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUser } from '../contexts/UserContext';
+import { API_BASE_URL } from '../config';
 
 export const fetchUserInfo = async (setUser, navigation) => {
     try {
         const token = await AsyncStorage.getItem("access_token");
-        const response = await axios.get("http://172.20.10.2:8000/users/me", {
+        const response = await axios.get(`${API_BASE_URL}/users/me`, {
             headers: {
                 Authorization: `Bearer ${token}`,
             },

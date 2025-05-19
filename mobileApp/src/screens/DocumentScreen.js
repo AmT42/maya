@@ -5,6 +5,7 @@ import { FetchDocuments } from '../utils/FetchDocuments';
 import AddNewDoc from '../components/AddNewDoc';
 import SearchBar from '../components/SearchBar';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import AsyncStorage from  '@react-native-async-storage/async-storage';
 
 const DocumentScreen = ({ navigation }) => {
@@ -21,7 +22,7 @@ const DocumentScreen = ({ navigation }) => {
         try {
             token = await AsyncStorage.getItem("access_token");
             console.log(token)
-            const response = await axios.get(`http://172.20.10.2:8000/user/search?query=${encodeURIComponent(query)}&top_k=2`,{
+            const response = await axios.get(`${API_BASE_URL}/user/search?query=${encodeURIComponent(query)}&top_k=2`,{
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

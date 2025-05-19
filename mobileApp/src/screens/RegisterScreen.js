@@ -3,6 +3,7 @@ import { View, TextInput, Button, Text, ActivityIndicator } from 'react-native';
 import { styles } from '../styles'; 
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchUserInfo } from '../utils/FetchUserInfo';
 import { useUser } from '../contexts/UserContext';
@@ -29,7 +30,7 @@ const RegisterScreen = ({ navigation }) => {
     try {
       const formData = `username=${username}&email=${email}&password=${password}`;
 
-      const response = await axios.post('http://172.20.10.2:8000/register', formData, {
+      const response = await axios.post(`${API_BASE_URL}/register`, formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
