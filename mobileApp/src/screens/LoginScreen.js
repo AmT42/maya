@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, TextInput, Text, ActivityIndicator } from 'react-native';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { styles } from '../styles'; 
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { useUser } from "../contexts/UserContext"; 
@@ -21,7 +22,7 @@ const LoginScreen = ({ navigation }) => {
     try {
       const formData = `username=${userName}&password=${password}`;
       // http://192.168.1.16:8000/ or http://10.0.2.2:8000/ http://172.20.10.2:8000
-      const response = await axios.post('http://172.20.10.2:8000/login', formData, {
+      const response = await axios.post(`${API_BASE_URL}/login`, formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
