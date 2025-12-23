@@ -1,8 +1,7 @@
 from google.cloud import vision
 from PIL import Image
-import numpy as np 
-import os 
-from google.cloud import vision
+import numpy as np
+import os
 
 def ocr_image(path, client):
 
@@ -23,10 +22,20 @@ def entity_to_dict(entity):
         'bounding_poly': [(vertex.x, vertex.y) for vertex in entity.bounding_poly.vertices]
     }
 
-def call_ocr(path, client):
+def call_ocr(path, client=None):
+    if client is None:
+        client = get_client()
     text = ocr_image(path, client)
     text_json = [entity_to_dict(t) for t in text]
     return text_json[0]["description"]
 
-vision_credentials_path = os.getenv('GOOGLE_OCR_CREDENTIALS')
-client = vision.ImageAnnotatorClient.from_service_account_file(vision_credentials_path)
+client = None
+
+def get_client():
+    global client
+    if client is None:
+        vision_credentials_path = os.getenv('GOOGLE_OCR_CREDENTIALS')
+        if not vision_credentials_path:
+            raise RuntimeError("GOOGLE_OCR_CREDENTIALS env var is not set")
+        client = vision.ImageAnnotatorClient.from_service_account_file(vision_credentials_path)
+    return client

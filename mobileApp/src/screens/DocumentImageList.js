@@ -2,13 +2,14 @@
 
 import React from 'react';
 import { View, Image, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { buildStorageUrl } from '../utils/storageUrl';
 
 const DocumentImageList = ({ data, onImagePress }) => {
     return data.map(item => (
         <TouchableOpacity onPress={() => onImagePress(item.file_path)} style={styles.touchableContainer}>
             <View style={styles.documentItemContainer}>
                 <Image
-                    source={{ uri: `http://172.20.10.2:8000/${encodeURIComponent(item.file_path.replace('/storage/', ''))}` }}
+                    source={{ uri: buildStorageUrl(item.file_path) }}
                     style={styles.imageStyle}
                     onError={(error) => {
                         console.error("Image loading error:", error);

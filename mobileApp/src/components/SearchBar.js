@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, TextInput, Button } from 'react-native';
-import axios from 'axios';
 
 const SearchBar = ({ onSearch }) => {
     const [query, setQuery] = useState('');

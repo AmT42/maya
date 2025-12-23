@@ -7,6 +7,7 @@ from decouple import config
 import traceback
 from typing import Optional 
 from uuid import UUID
+from datetime import datetime
 
 from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body,Query 
 from fastapi.security import OAuth2PasswordBearer
@@ -48,6 +49,7 @@ app.add_middleware(
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 TEMP_STORAGE = settings.TEMP_STORAGE
+DEV_MODE = settings.MAYA_DEV_MODE
 BASE_DIR = Path(__file__).parent
 image_dir = os.path.join(BASE_DIR, "storage")
 app.mount("/storage", StaticFiles(directory=image_dir), name="storage")
@@ -135,7 +137,7 @@ def upload_document(request: Request,
                     file: UploadFile = File(...), 
                     db: Session = Depends(get_db),
                     chroma_db = Depends(get_chroma_db),
-                    User = Depends(get_current_user)):
+                    current_user = Depends(get_current_user)):
     try: 
         content_type = file.content_type
 
@@ -146,17 +148,31 @@ def upload_document(request: Request,
         # Determine if we received an image or text
         if content_type.startswith("image/"):
             file_path =  f'storage/{TEMP_STORAGE}/{doc_id}.jpg'
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
             logger.info("Saving")
             with open(file_path, "wb") as f:   ## add size checking condition 
                 f.write(file.file.read())  
                 logger.info("SAVED")
-            ocr_text = ocr.call_ocr(file_path, client = ocr.client)
+            if DEV_MODE:
+                ocr_text = ""
+            else:
+                ocr_text = ocr.call_ocr(file_path)
         else:
             ocr_text = file.file.read().decode()
         logger.info(f'OCR TEXT {ocr_text}')
         file.file.close()
 
-        extracted_info = chatgpt.call_gpt(text = ocr_text)
+        if DEV_MODE:
+            today = datetime.utcnow().strftime("%d/%m/%Y")
+            extracted_info = {
+                "doctype": "document",
+                "date": today,
+                "expediteur": "dev",
+                "recapitulatif": "dev mode upload",
+                "google_calendar": None,
+            }
+        else:
+            extracted_info = chatgpt.call_gpt(text = ocr_text)
         logger.info(extracted_info)
         # Store the extracted information in the database
         new_document = Document(
@@ -167,26 +183,27 @@ def upload_document(request: Request,
             expediteur = extracted_info["expediteur"].lower().strip(),
             recapitulatif=extracted_info['recapitulatif'].lower().strip(),
             google_calendar = extracted_info['google_calendar'],
-            user_id = User.id
+            user_id = current_user.id
         )
         db.add(new_document)
         db.commit()
         
         doc_id = str(doc_id)
-        # From text to Chroma.Document object
-        raw_docs = [ChromaDocument(page_content = ocr_text, metadata = {"type":"ocr", "id":doc_id})]
+        if not DEV_MODE:
+            # From text to Chroma.Document object
+            raw_docs = [ChromaDocument(page_content = ocr_text, metadata = {"type":"ocr", "id":doc_id})]
 
-        # Split document into chunks
-        docs = text_splitter.split_documents(raw_docs)
+            # Split document into chunks
+            docs = text_splitter.split_documents(raw_docs)
 
-        # Get unique Id per chunk
-        ids = [f"{doc_id}-{i}" for i in range(len(docs))]
-        logger.info(f'IDS {ids} doc_id {doc_id}')
-        logger.info(docs)
-        # Add to the chroma vdb with its corresponding ids
-        chroma_db.add_documents(docs, ids = ids)
+            # Get unique Id per chunk
+            ids = [f"{doc_id}-{i}" for i in range(len(docs))]
+            logger.info(f'IDS {ids} doc_id {doc_id}')
+            logger.info(docs)
+            # Add to the chroma vdb with its corresponding ids
+            chroma_db.add_documents(docs, ids = ids)
 
-        logger.info("DOCUMENT ADDED TO CHROMA")
+            logger.info("DOCUMENT ADDED TO CHROMA")
         return {
             "doc_id" : doc_id,
             "extracted_info" : extracted_info
@@ -229,8 +246,6 @@ def validate(request: Request,
         document_to_update.expediteur = info["expediteur"].lower().strip()
         document_to_update.recapitulatif = info['recapitulatif'].lower().strip()
         document_to_update.google_calendar = info['google_calendar']
-        # Commit the changes
-        db.commit()
         user_id = document_to_update.user_id
         logger.info(f"document_to_update.file_path {document_to_update.file_path}")
         if document_to_update.file_path:
@@ -239,22 +254,26 @@ def validate(request: Request,
                 os.makedirs(directory)
             final_file_path = f'{directory}{info["date"].replace("/","-")}.jpg'
             shutil.move(document_to_update.file_path, final_file_path)
+            document_to_update.file_path = final_file_path
+        # Commit the changes
+        db.commit()
 
-        # Convert validated info to semantic format and store in Chroma DB (if needed)
-        # validated_info_semantic = chatgpt.json2semantic(info)
-        # From text to document
-        json_docs = [ChromaDocument(page_content = json.dumps(info), metadata = {"type":"chatgpt", "id": doc_id})]
+        if not DEV_MODE:
+            # Convert validated info to semantic format and store in Chroma DB (if needed)
+            # validated_info_semantic = chatgpt.json2semantic(info)
+            # From text to document
+            json_docs = [ChromaDocument(page_content = json.dumps(info), metadata = {"type":"chatgpt", "id": doc_id})]
 
-        # Split document into chunks
-        docs = text_splitter.split_documents(json_docs)
+            # Split document into chunks
+            docs = text_splitter.split_documents(json_docs)
 
-        # Get unique Id per chunk
-        ids = [f'{doc_id}-{i}' for i in range(len(docs))]
+            # Get unique Id per chunk
+            ids = [f'{doc_id}-{i}' for i in range(len(docs))]
 
-        # Add to the chroma vdb with its corresponding ids 
-        chroma_db.add_documents(docs, ids = ids) 
-        #create event in google calendar
-        create_event(info)
+            # Add to the chroma vdb with its corresponding ids 
+            chroma_db.add_documents(docs, ids = ids) 
+            #create event in google calendar
+            create_event(info)
 
         return {"doc_id": doc_id,
                 "validated_info": info}
@@ -431,6 +450,9 @@ def search_documents(request: Request,
                      current_user =  Depends(get_current_user),
                      db = Depends(get_db),
                      chroma_db = Depends(get_chroma_db_json)):
+
+    if DEV_MODE:
+        return []
     
     doc_query = db.query(Document).filter(Document.user_id == current_user.id)
 
@@ -476,5 +498,3 @@ async def delete_all_data(db: Session = Depends(get_db)):
 ## later
 ## from app.api.v1.routers import router as api_router
 ## app.include_router(api_router, prefix = "api/v1")
-
-

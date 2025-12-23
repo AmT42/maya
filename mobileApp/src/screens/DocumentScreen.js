@@ -4,8 +4,8 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import { FetchDocuments } from '../utils/FetchDocuments';
 import AddNewDoc from '../components/AddNewDoc';
 import SearchBar from '../components/SearchBar';
-import axios from 'axios';
-import AsyncStorage from  '@react-native-async-storage/async-storage';
+import apiClient from '../services/apiClient';
+import { buildStorageUrl } from '../utils/storageUrl';
 
 const DocumentScreen = ({ navigation }) => {
     const [currentPath, setCurrentPath] = useState([]);
@@ -19,13 +19,7 @@ const DocumentScreen = ({ navigation }) => {
 
     const fetchSearchResults = async (query) => {
         try {
-            token = await AsyncStorage.getItem("access_token");
-            console.log(token)
-            const response = await axios.get(`http://172.20.10.2:8000/user/search?query=${encodeURIComponent(query)}&top_k=2`,{
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const response = await apiClient.get(`/user/search?query=${encodeURIComponent(query)}&top_k=2`);
             console.log("RÉPONSE",response,)
             return response.data;
         } catch (error) {
@@ -93,7 +87,7 @@ const DocumentScreen = ({ navigation }) => {
                 <TouchableOpacity onPress={() => handlePress(item)}  style={styles.touchableContainer}>
                     <View style={styles.documentItemContainer}>
                         <Image
-                            source={{ uri: `http://172.20.10.2:8000/${encodeURIComponent(item.file_path.replace('/storage/', ''))}` }}
+                            source={{ uri: buildStorageUrl(item.file_path) }}
                             style={styles.imageStyle}
                             onError={(error) => {
                                 console.error("Image loading error:", error);
@@ -121,7 +115,7 @@ const DocumentScreen = ({ navigation }) => {
                 <TouchableOpacity onPress={() => handlePress(item)}  style={styles.touchableContainer}>
                     <View style={styles.documentItemContainer}>
                         <Image
-                            source={{ uri: `http://172.20.10.2:8000/${encodeURIComponent(item.file_path.replace('/storage/', ''))}` }}
+                            source={{ uri: buildStorageUrl(item.file_path) }}
                             style={styles.imageStyle}
                             onError={(error) => {
                                 console.error("Image loading error:", error);
@@ -135,8 +129,7 @@ const DocumentScreen = ({ navigation }) => {
     };
 
     const handleImageClick = (imagePath) => {
-        const fullImagePath = `http://172.20.10.2:8000/${encodeURIComponent(imagePath.replace('/storage/', ''))}`;
-        setSelectedImage(fullImagePath);
+        setSelectedImage(buildStorageUrl(imagePath));
         setModalVisible(true);
     };
     return (

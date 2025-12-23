@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import axios from 'axios';
+import apiClient from '../services/apiClient';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import DocumentScanner from 'react-native-document-scanner-plugin';
 import ValidationModal from '../utils/ValidationModal'; // Modify this based on your path
-import AsyncStorage from  '@react-native-async-storage/async-storage';
 
 const AddNewDoc = () => {
 
     const [scannedImage, setScannedImage] = useState(null);
     const [extractedInfo, setExtractedInfo] = useState(null);
-    const [showValidationModal, setShowValidationModal] = useState(null);
+    const [showValidationModal, setShowValidationModal] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [docId, setDocId] = useState(null);
 
@@ -33,14 +32,7 @@ const AddNewDoc = () => {
             type: 'image/jpeg', // or image/png, depending on what you are capturing
             name: 'scannedImage.jpg', // You can rename this if you want
         });
-        const token = await AsyncStorage.getItem("access_token");
-        console.log("TOKEN",token)
-        const response = await axios.post('http://172.20.10.2:8000/upload', formData,{
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await apiClient.post('/upload', formData);
         if (response.data && response.data.extracted_info){
           setDocId(response.data.doc_id)
           setExtractedInfo(response.data.extracted_info);
@@ -65,11 +57,7 @@ const AddNewDoc = () => {
 
       }
       try {
-        const token = await AsyncStorage.getItem("access_token");
-        const response = await axios.post("http://172.20.10.2:8000/validate", payload, {
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${token}`
-        })
+        const response = await apiClient.post('/validate', payload);
 
         if (response.data && response.data.doc_id) {
           console.log('Validation successful', response.data);
@@ -89,7 +77,7 @@ const AddNewDoc = () => {
                     <TouchableOpacity style={[styles.actionButton, { borderRightWidth: 1, borderRightColor: "white" }]} onPress={scanDocument}>
                         <Icon name="camera" size={30} color="white" />  
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton} onPress="">
+                    <TouchableOpacity style={styles.actionButton} onPress={() => {}}>
                         <Icon name="images-outline" size={30} color="white" /> 
                     </TouchableOpacity>
                     {extractedInfo && (

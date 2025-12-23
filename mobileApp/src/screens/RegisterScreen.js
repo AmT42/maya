@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, TextInput, Button, Text, ActivityIndicator } from 'react-native';
 import { styles } from '../styles'; 
 import { TouchableOpacity } from 'react-native-gesture-handler';
-import axios from 'axios';
+import apiClient from '../services/apiClient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchUserInfo } from '../utils/FetchUserInfo';
 import { useUser } from '../contexts/UserContext';
@@ -12,7 +12,7 @@ const RegisterScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [email, setEmail] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { setUser } = useUser();
 
@@ -23,13 +23,14 @@ const RegisterScreen = ({ navigation }) => {
     if (password !== confirmPassword) {
       console.error("Passwords don't match.");
       setError("Passwords don't match. ")
+      setIsLoading(false);
       return;
     }
 
     try {
       const formData = `username=${username}&email=${email}&password=${password}`;
 
-      const response = await axios.post('http://172.20.10.2:8000/register', formData, {
+      const response = await apiClient.post('/register', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -38,8 +39,7 @@ const RegisterScreen = ({ navigation }) => {
       await AsyncStorage.setItem("access_token", response.data.access_token);
       await AsyncStorage.setItem("refresh_token", response.data.refresh_token);
 
-      await fetchUserInfo(setUser, navigation)
-
+      await fetchUserInfo(setUser);
       navigation.navigate("UserProfile");
     } catch (error) {
       setIsLoading(false);

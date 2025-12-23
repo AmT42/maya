@@ -22,12 +22,32 @@ class ChromaDBService(metaclass = SingletonMeta):
         self.chroma_db = Chroma(client = self.client, embedding_function=OpenAIEmbeddings(),
                                 collection_name = self.name)
         
-chroma_db_service = ChromaDBService("smart_maya")
-chroma_db_service_json = ChromaDBService("smart_maya_json")
+class DummyChromaDB:
+    def add_documents(self, docs, ids=None):
+        return None
+
+    def similarity_search(self, query):
+        return []
+
+    def delete(self, ids):
+        return None
+
+chroma_db_service = None
+chroma_db_service_json = None
 
 def get_chroma_db():
+    if settings.MAYA_DEV_MODE:
+        return DummyChromaDB()
+    global chroma_db_service
+    if chroma_db_service is None:
+        chroma_db_service = ChromaDBService("smart_maya")
     return chroma_db_service.chroma_db
 def get_chroma_db_json():
-     return chroma_db_service_json.chroma_db
+    if settings.MAYA_DEV_MODE:
+        return DummyChromaDB()
+    global chroma_db_service_json
+    if chroma_db_service_json is None:
+        chroma_db_service_json = ChromaDBService("smart_maya_json")
+    return chroma_db_service_json.chroma_db
 
 text_splitter = CharacterTextSplitter(chunk_size = 1000, chunk_overlap = 100)

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, TextInput, Text, ActivityIndicator } from 'react-native';
-import axios from 'axios';
+import apiClient from '../services/apiClient';
 import { styles } from '../styles'; 
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { useUser } from "../contexts/UserContext"; 
@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const LoginScreen = ({ navigation }) => {
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { setUser } = useUser();
 
@@ -20,8 +20,8 @@ const LoginScreen = ({ navigation }) => {
     console.log("HERE")
     try {
       const formData = `username=${userName}&password=${password}`;
-      // http://192.168.1.16:8000/ or http://10.0.2.2:8000/ http://172.20.10.2:8000
-      const response = await axios.post('http://172.20.10.2:8000/login', formData, {
+      // Base URL is configured in src/config/apiConfig.js
+      const response = await apiClient.post('/login', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
@@ -30,9 +30,8 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem("access_token", response.data.access_token);
       await AsyncStorage.setItem("refresh_token", response.data.refresh_token);
 
-      await fetchUserInfo(setUser, navigation);
-      // setUser(response.data.user);
-      navigation.navigate("UserProfile");// Handle successful login here (e.g., navigate to the next screen)
+      await fetchUserInfo(setUser);
+      navigation.navigate("UserProfile");
     } catch (error) {
       setIsLoading(false);
       console.error('Error during login:', error.response?.data || error.message);
