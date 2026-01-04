@@ -1,13 +1,12 @@
 import json
 import os 
 import shutil 
+import re
 from uuid import uuid4
-from google.cloud import vision
-from decouple import config
 import traceback
 from typing import Optional 
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body,Query 
 from fastapi.security import OAuth2PasswordBearer
@@ -21,8 +20,23 @@ from langchain.docstore.document import Document as ChromaDocument
 
 from db.session import SessionLocal
 from db.models import Document, User
-from db.schemas import ValidatedInfo
-from utils.security import verify_password, hash_password, create_refresh_token, create_access_token, verify_token
+from db.schemas import (
+    GoogleAuthRequest,
+    RefreshTokenRequest,
+    TokenResponse,
+    UserPublic,
+    ValidatedInfo,
+)
+from db.migrations import run_migrations
+from services.auth.google_signin import verify_google_id_token
+from utils.security import (
+    hash_refresh_token,
+    verify_password,
+    hash_password,
+    create_refresh_token,
+    create_access_token,
+    verify_token,
+)
 from services.calendar.google_calendar import create_event
 
 from core.config import settings
@@ -58,6 +72,11 @@ limiter = Limiter(key_func = get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+@app.on_event("startup")
+def on_startup():
+    run_migrations()
+
 # Dependency 
 def get_db():
     db = SessionLocal()
@@ -68,13 +87,48 @@ def get_db():
 
 def get_current_user(token: str = Depends(oauth2_scheme), db : Session = Depends(get_db)):
     payload = verify_token(token)
-    user = db.query(User).filter(User.username == payload["sub"]).first()
+    try:
+        user_id = UUID(payload["sub"])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=401, detail = "Invalid token")
     return user
 
-@app.post("/register")
-def register_user(username: str = Form(...), email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+
+def generate_unique_username(email: str, db: Session) -> str:
+    base = email.split("@", 1)[0].strip().lower()
+    base = re.sub(r"[^a-z0-9._-]", "", base)[:24] or "user"
+
+    candidate = base
+    suffix = 0
+    while db.query(User).filter(User.username == candidate).first():
+        suffix += 1
+        candidate = f"{base}{suffix}"
+    return candidate
+
+
+def issue_tokens_for_user(user: User, db: Session) -> TokenResponse:
+    refresh_token = create_refresh_token()
+    user.refresh_token = hash_refresh_token(refresh_token)
+    user.refresh_token_expires_at = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+    access_token = create_access_token(str(user.id))
+    db.commit()
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+@app.post("/register", response_model=TokenResponse)
+def register_user(
+    username: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    username = username.strip()
+    email = email.strip().lower()
+
     user = db.query(User).filter(User.username == username).first()
     if user: 
         raise HTTPException(status_code = 400, detail = "User is already registered")
@@ -85,51 +139,112 @@ def register_user(username: str = Form(...), email: str = Form(...), password: s
     
 
     hashed_password = hash_password(password)
-    new_user = User(username=username, email = email, hashed_password = hashed_password)
+    new_user = User(username=username, email=email, hashed_password=hashed_password)
     db.add(new_user)
+    db.flush()
+    return issue_tokens_for_user(new_user, db)
 
-    access_token = create_access_token({"sub": username})
-    refresh_token = create_refresh_token({"sub": username})
-
-    new_user.refresh_token = refresh_token
-
-    db.commit()
-    return {"access_token": access_token, "refresh_token": refresh_token, "message": "User created successfully!"}
-
-@app.post("/login")
-def login(username:str = Form(...), password: str = Form(), db: Session = Depends(get_db)):
-    logger.info("LOGS")
-    logger.info(f"Username: {username}, Password: {password}")
-    user = db.query(User).filter(User.username == username).first()
+@app.post("/login", response_model=TokenResponse)
+def login(username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    identifier = username.strip()
+    user = (
+        db.query(User)
+        .filter((User.username == identifier) | (User.email == identifier.lower()))
+        .first()
+    )
     if not user: 
         raise HTTPException(status_code = 400, detail="Invalid username or password")
     
+    if not user.hashed_password:
+        raise HTTPException(status_code=400, detail="This account uses Google Sign-In")
+
     if not verify_password(password, user.hashed_password):
         raise HTTPException(status_code = 400, detail = "Invalid username or password")
     
-    access_token = create_access_token({"sub": user.username})
-    refresh_token = create_refresh_token({"sub": user.username})
+    return issue_tokens_for_user(user, db)
 
-    # Store refresh token in the database
-    user.refresh_token = refresh_token
-    db.commit()
+@app.post("/auth/refresh", response_model=TokenResponse)
+def refresh_tokens(payload: RefreshTokenRequest, db: Session = Depends(get_db)):
+    refresh_token = payload.refresh_token
+    token_hash = hash_refresh_token(refresh_token)
 
-    #return token for the user
-    return {"access_token": access_token, "refresh_token": refresh_token}
-
-@app.post("/token/refresh")
-def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.refresh_token == refresh_token).first()
+    user = db.query(User).filter(User.refresh_token == token_hash).first()
+    # Backward-compat: allow legacy plaintext refresh tokens (upgrades on use).
     if not user:
-        raise HTTPException(status_code = 400, detail = "Invalid refresh token")
-    
-    # Generate a new acess token 
-    new_access_token = create_access_token({"sub": user.username})
-    return {"access_token" : new_access_token}
+        user = db.query(User).filter(User.refresh_token == refresh_token).first()
+        if user:
+            user.refresh_token = token_hash
 
-@app.get("/users/me")
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    if user.refresh_token_expires_at and user.refresh_token_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+
+    return issue_tokens_for_user(user, db)
+
+
+@app.post("/token/refresh", response_model=TokenResponse, include_in_schema=False)
+def refresh_tokens_legacy(refresh_token: str, db: Session = Depends(get_db)):
+    return refresh_tokens(RefreshTokenRequest(refresh_token=refresh_token), db)
+
+
+@app.post("/auth/logout")
+def logout(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user.refresh_token = None
+    user.refresh_token_expires_at = None
+    db.commit()
+    return {"detail": "Logged out"}
+
+
+@app.post("/auth/google", response_model=TokenResponse)
+def google_auth(payload: GoogleAuthRequest, db: Session = Depends(get_db)):
+    claims = verify_google_id_token(payload.id_token)
+
+    google_sub = claims.get("sub")
+    email = (claims.get("email") or "").strip().lower()
+    full_name = claims.get("name")
+    avatar_url = claims.get("picture")
+
+    if not google_sub or not email:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    user = db.query(User).filter(User.google_sub == google_sub).first()
+    if not user:
+        # Link by email (common & optimal UX). Safe because we enforce email_verified above.
+        user = db.query(User).filter(User.email == email).first()
+        if user:
+            user.google_sub = google_sub
+            user.full_name = user.full_name or full_name
+            user.avatar_url = user.avatar_url or avatar_url
+        else:
+            username = generate_unique_username(email, db)
+            user = User(
+                username=username,
+                email=email,
+                hashed_password=None,
+                google_sub=google_sub,
+                full_name=full_name,
+                avatar_url=avatar_url,
+            )
+            db.add(user)
+            db.flush()
+
+    return issue_tokens_for_user(user, db)
+
+@app.get("/users/me", response_model=UserPublic)
 def read_users_me(current_user: User = Depends(get_current_user)):
-    return current_user
+    return {
+        "id": str(current_user.id),
+        "username": current_user.username,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "avatar_url": current_user.avatar_url,
+        "created_at": current_user.created_at,
+    }
 
 @app.post("/upload")
 @limiter.limit("5/minute")
@@ -228,6 +343,7 @@ def upload_document(request: Request,
 @app.post("/validate")
 def validate(request: Request, 
              validated_info: ValidatedInfo,
+             current_user: User = Depends(get_current_user),
              db: Session = Depends(get_db),
              chroma_db = Depends(get_chroma_db_json)):
     try:
@@ -239,6 +355,8 @@ def validate(request: Request,
 
         if not document_to_update:
             raise HTTPException(status_code = 400, detail = f"Document with id {doc_id} not found!")
+        if document_to_update.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Forbidden")
 
         # Update the attributes of the record with validated info
         document_to_update.doctype = info["doctype"].lower().strip()
@@ -479,7 +597,12 @@ def search_documents(request: Request,
         raise HTTPException(status_code=500, detail = "An unexpected error occured")
 
 @app.post("/delete_all_data")
-async def delete_all_data(db: Session = Depends(get_db)):
+async def delete_all_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not DEV_MODE:
+        raise HTTPException(status_code=404, detail="Not found")
     try: 
         db.query(Document).delete()
         db.query(User).delete()
