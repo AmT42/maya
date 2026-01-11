@@ -1,14 +1,14 @@
 import React from 'react';
 import {Alert, Image, Pressable, StyleSheet, Text, View} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Screen from '../components/ui/Screen';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import {useUser} from '../contexts/UserContext';
 import {useTheme} from '../theme/theme';
+import {logout} from '../services/authService';
 
-const ProfileScreen = () => {
+const ProfileScreen = ({navigation}) => {
   const theme = useTheme();
   const {user, setUser} = useUser();
 
@@ -19,13 +19,55 @@ const ProfileScreen = () => {
         text: 'Sign out',
         style: 'destructive',
         onPress: async () => {
-          await AsyncStorage.removeItem('access_token');
-          await AsyncStorage.removeItem('refresh_token');
-          setUser(null);
+          await logout({setUser});
         },
       },
     ]);
   };
+
+  if (!user) {
+    return (
+      <Screen>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, {color: theme.colors.text}]}>
+            Profile
+          </Text>
+          <Text
+            style={[
+              styles.headerSubtitle,
+              {color: theme.colors.textSecondary},
+            ]}>
+            Sign in to sync & search
+          </Text>
+        </View>
+
+        <View style={styles.content}>
+          <Card style={styles.card}>
+            <Text style={[styles.guestTitle, {color: theme.colors.text}]}>
+              You’re in guest mode
+            </Text>
+            <Text
+              style={[styles.guestSubtitle, {color: theme.colors.textSecondary}]}>
+              Scan instantly. Sign in when you want your library, search, and
+              multi-device sync.
+            </Text>
+            <Button
+              title="Sign in"
+              icon="log-in-outline"
+              onPress={() => navigation.navigate('Auth')}
+              style={{marginTop: 14}}
+            />
+          </Card>
+
+          <Pressable style={{marginTop: 14}} onPress={() => {}}>
+            <Text style={[styles.smallPrint, {color: theme.colors.muted}]}>
+              Maya • vNext UI
+            </Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -115,6 +157,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  guestTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: -0.2,
+  },
+  guestSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
   },
   avatar: {
     width: 46,

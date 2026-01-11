@@ -15,17 +15,14 @@ DEFAULT_IGNORE_FOLDERS = {
     '.git', '__pycache__', 'node_modules', '.pytest_cache', 
     '.mypy_cache', 'dist', 'build', '.venv', 'venv', 
     '.idea', '.vscode', 'env','.env','.github','runs_metadata', 'scripts',
-    'backend/paper-qa','backend/gurnemanz','backend/tests'
-    'backend/plip','backend/data', 'backend/.credentials/', 'backend/.cursor/', 'backend/plip',
-    'backend/tests','backend/eve_app/ipc/tests','backend/pipeline_run_cache', 'backend/data','backend/--no-cache',
-    'paper-qa/','backend/eva_app/src/transition'
+    'venv', '.venv',
 }
 
 DEFAULT_IGNORE_SUFFIXES = {
     '.pyc', '.pyo', '.pyd', '.so', '.dylib', '.dll',
     '.egg-info', '.DS_Store', '.gitignore', '.log',
     '.tmp', '.temp', '.swp', '.swo', '~','.pdb','.pkl',
-    '.sdf','.gz','.mol','.pdf','.csv','.log', '.md','.ipynb','.code-workspace',
+    '.sdf','.gz','.mol','.pdf','.csv','.log','.ipynb','.code-workspace',
     '.html', '.pdf'
 }
 

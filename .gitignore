@@ -5,7 +5,6 @@ __pycache__/
 notebooks/
 storage/
 *.jpg
-app/alembic.ini
 *.mako
 server.htpasswd
 test/*.json
@@ -75,4 +74,3 @@ xcuserdata/
 
 # VSCode directories
 .vscode/
-

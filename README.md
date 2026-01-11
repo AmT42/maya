@@ -112,6 +112,17 @@ Set `MAYA_DEV_MODE=1` (via `.env` or container env). In DEV mode the backend:
 - returns mocked `extracted_info` (no OCR/LLM required)
 - skips Chroma and Google Calendar
 
+## Google Sign-In (iOS)
+
+Backend:
+- Set `GOOGLE_WEB_CLIENT_ID` and `GOOGLE_IOS_CLIENT_ID` in `.env` (or use legacy `GOOGLE_ID` as a comma-separated list).
+- Mobile exchanges the Google `id_token` via `POST /auth/google` to receive `{access_token, refresh_token}`.
+
+Mobile:
+- Update `mobileApp/src/config/googleConfig.js` with your Google OAuth client IDs.
+- Ensure `mobileApp/ios/mobileApp/Info.plist` contains the reversed client ID URL scheme.
+- Install deps and pods: `cd mobileApp && npm install && cd ios && pod install`.
+
 ### Full mode (OCR/LLM/RAG)
 Provide credentials/keys in `.env`:
 - `OPENAI_API_KEY`

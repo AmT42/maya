@@ -5,6 +5,9 @@ import {fetchUserInfo} from '../utils/FetchUserInfo';
 import AuthStack from './AuthStack';
 import MainTabs from './MainTabs';
 import SplashScreen from '../screens/SplashScreen';
+import {createStackNavigator} from '@react-navigation/stack';
+
+const Stack = createStackNavigator();
 
 const RootNavigator = () => {
   const {user, setUser} = useUser();
@@ -17,14 +20,10 @@ const RootNavigator = () => {
       try {
         const token = await AsyncStorage.getItem('access_token');
         if (token) {
-          const loadedUser = await fetchUserInfo(setUser);
-          if (!loadedUser) {
-            await AsyncStorage.removeItem('access_token');
-            await AsyncStorage.removeItem('refresh_token');
-          }
+          await fetchUserInfo(setUser);
         }
       } catch (e) {
-        // Ignore and fall back to auth flow
+        await AsyncStorage.multiRemove(['access_token', 'refresh_token']);
       } finally {
         if (!cancelled) {
           setBootstrapping(false);
@@ -42,7 +41,16 @@ const RootNavigator = () => {
     return <SplashScreen />;
   }
 
-  return user ? <MainTabs /> : <AuthStack />;
+  return (
+    <Stack.Navigator screenOptions={{headerShown: false}}>
+      <Stack.Screen name="Main" component={MainTabs} />
+      <Stack.Screen
+        name="Auth"
+        component={AuthStack}
+        options={{presentation: 'modal'}}
+      />
+    </Stack.Navigator>
+  );
 };
 
 export default RootNavigator;

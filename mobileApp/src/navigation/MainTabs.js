@@ -41,6 +41,7 @@ const MainTabs = () => {
 
   return (
     <Tab.Navigator
+      initialRouteName="Scan"
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,

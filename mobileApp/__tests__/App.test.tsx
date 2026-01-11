@@ -13,7 +13,17 @@ import {it} from '@jest/globals';
 import renderer, {act} from 'react-test-renderer';
 
 it('renders correctly', async () => {
+  jest.useFakeTimers();
+
+  let tree: renderer.ReactTestRenderer;
   await act(async () => {
-    renderer.create(<App />);
+    tree = renderer.create(<App />);
   });
+
+  act(() => {
+    jest.runOnlyPendingTimers();
+  });
+
+  tree.unmount();
+  jest.useRealTimers();
 });

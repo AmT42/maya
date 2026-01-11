@@ -6,11 +6,13 @@ import Screen from '../components/ui/Screen';
 import TextField from '../components/ui/TextField';
 import Button from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
+import {useUser} from '../contexts/UserContext';
 import {useTheme} from '../theme/theme';
 import {buildStorageUrl} from '../utils/storageUrl';
 
-const SearchScreen = () => {
+const SearchScreen = ({navigation}) => {
   const theme = useTheme();
+  const {user} = useUser();
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
@@ -74,6 +76,46 @@ const SearchScreen = () => {
   const showEmpty = hasSearched && !loading && results.length === 0;
   const showHint = !hasSearched && query.trim().length === 0;
 
+  if (!user) {
+    return (
+      <Screen>
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, {color: theme.colors.text}]}>
+            Search
+          </Text>
+          <Text
+            style={[
+              styles.headerSubtitle,
+              {color: theme.colors.textSecondary},
+            ]}>
+            Sign in to search your library
+          </Text>
+        </View>
+
+        <View style={styles.guestContent}>
+          <EmptyState
+            title="Search is locked"
+            subtitle="Sign in to search inside your scanned documents."
+            icon="lock-closed-outline"
+          />
+          <Button
+            title="Sign in"
+            icon="log-in-outline"
+            onPress={() => navigation.navigate('Auth')}
+            style={{marginTop: 16}}
+          />
+          <Button
+            title="Scan a document"
+            variant="secondary"
+            icon="scan-outline"
+            onPress={() => navigation.navigate('Scan')}
+            style={{marginTop: 12}}
+          />
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -92,6 +134,7 @@ const SearchScreen = () => {
             value={query}
             onChangeText={setQuery}
             placeholder="Try “invoice”, “rent”, “tax”…"
+            autoFocus
             autoCapitalize="none"
             returnKeyType="search"
             onSubmitEditing={runSearch}
@@ -158,6 +201,11 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
+    paddingBottom: 110,
+  },
+  guestContent: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
     paddingBottom: 110,
   },
   row: {

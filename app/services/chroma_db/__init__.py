@@ -1,16 +1,7 @@
-from langchain.vectorstores import Chroma
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.docstore.document import Document
-from decouple import config
-from base64 import b64encode
+"""Chroma DB service package.
 
-import chromadb 
-from chromadb.config import Settings
+Keep this package import-side-effect free: initialization must stay lazy in
+`db.py` so the backend can run in `MAYA_DEV_MODE` without requiring Chroma (and
+without triggering Chroma telemetry on import).
+"""
 
-credentials = b64encode(f"admin:{config('ADMIN')}".encode()).decode("utf-8")
-headers = {
-    "Authorization": f"Basic {credentials}"
-}
-
-chroma_client = chromadb.HttpClient(settings = Settings(allow_reset = True), host = "server", port = 8000, headers=headers)

@@ -25,6 +25,7 @@ const IconButton = ({
           backgroundColor: theme.colors.surface2,
           borderColor: theme.colors.border,
           opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
+          transform: [{scale: pressed ? 0.99 : 1}],
         },
         style,
       ]}>

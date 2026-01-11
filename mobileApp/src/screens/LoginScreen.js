@@ -8,44 +8,57 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import apiClient from '../services/apiClient';
 import Screen from '../components/ui/Screen';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import TextField from '../components/ui/TextField';
 import {useTheme} from '../theme/theme';
 import {useUser} from '../contexts/UserContext';
-import {fetchUserInfo} from '../utils/FetchUserInfo';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {loginWithGoogle, loginWithPassword} from '../services/authService';
+import {getCachedApiBaseUrl} from '../config/apiConfig';
 
 const LoginScreen = ({navigation}) => {
   const theme = useTheme();
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const {setUser} = useUser();
+  const isBusy = isLoginLoading || isGoogleLoading;
 
   const handleLogin = async () => {
-    setIsLoading(true);
+    setIsLoginLoading(true);
     setError('');
     try {
-      const formData = `username=${userName}&password=${password}`;
-      // Base URL is configured in src/config/apiConfig.js
-      const response = await apiClient.post('/login', formData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-      await AsyncStorage.setItem('access_token', response.data.access_token);
-      await AsyncStorage.setItem('refresh_token', response.data.refresh_token);
-
-      await fetchUserInfo(setUser);
+      await loginWithPassword({username: userName, password, setUser});
+      navigation.getParent()?.goBack?.();
     } catch (e) {
       console.error('Error during login:', e.response?.data || e.message);
-      setError('Incorrect username or password.');
+      setError(e.response?.data?.detail || 'Incorrect username or password.');
     } finally {
-      setIsLoading(false);
+      setIsLoginLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    setError('');
+    try {
+      const user = await loginWithGoogle({setUser});
+      if (!user) {
+        return;
+      }
+      navigation.getParent()?.goBack?.();
+    } catch (e) {
+      console.error('Error during Google login:', e.response?.data || e.message);
+      if (e.message === 'Network Error') {
+        setError(`Can't reach backend (${getCachedApiBaseUrl()}).`);
+      } else {
+        setError('Google sign-in failed.');
+      }
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -98,6 +111,7 @@ const LoginScreen = ({navigation}) => {
               value={userName}
               onChangeText={setUserName}
               placeholder="yourname"
+              autoFocus
               autoCapitalize="none"
               returnKeyType="next"
             />
@@ -117,9 +131,19 @@ const LoginScreen = ({navigation}) => {
               title="Continue"
               icon="log-in-outline"
               onPress={handleLogin}
-              loading={isLoading}
-              disabled={!userName.trim() || !password.trim()}
+              loading={isLoginLoading}
+              disabled={isBusy || !userName.trim() || !password.trim()}
               style={{marginTop: 16}}
+            />
+
+            <Button
+              title="Continue with Google"
+              variant="secondary"
+              icon="logo-google"
+              onPress={handleGoogleLogin}
+              loading={isGoogleLoading}
+              disabled={isBusy}
+              style={{marginTop: 12}}
             />
 
             <Button

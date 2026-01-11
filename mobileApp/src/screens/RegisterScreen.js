@@ -39,7 +39,11 @@ const RegisterScreen = ({navigation}) => {
     }
 
     try {
-      const formData = `username=${username}&email=${email}&password=${password}`;
+      const formData = `username=${encodeURIComponent(
+        username,
+      )}&email=${encodeURIComponent(email)}&password=${encodeURIComponent(
+        password,
+      )}`;
 
       const response = await apiClient.post('/register', formData, {
         headers: {
@@ -50,9 +54,13 @@ const RegisterScreen = ({navigation}) => {
       await AsyncStorage.setItem('refresh_token', response.data.refresh_token);
 
       await fetchUserInfo(setUser);
+      navigation.getParent()?.goBack?.();
     } catch (e) {
       console.error('Registration Error: ', e.response?.data || e.message);
-      setError('Could not create account. Try another username/email.');
+      setError(
+        e.response?.data?.detail ||
+          'Could not create account. Try another username/email.',
+      );
     } finally {
       setIsLoading(false);
     }
@@ -107,6 +115,7 @@ const RegisterScreen = ({navigation}) => {
               value={username}
               onChangeText={setUsername}
               placeholder="yourname"
+              autoFocus
               autoCapitalize="none"
               returnKeyType="next"
             />

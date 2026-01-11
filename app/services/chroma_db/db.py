@@ -16,7 +16,7 @@ class ChromaDBService(metaclass = SingletonMeta):
             "Authorization" : f"Basic {credentials}"
         }
         self.name = name
-        self.client = chromadb.HttpClient(settings = ChromaSettings(allow_reset = True), 
+        self.client = chromadb.HttpClient(settings = ChromaSettings(allow_reset = True, anonymized_telemetry = False), 
                                           host = "server", port = 8000, headers=headers)
         
         self.chroma_db = Chroma(client = self.client, embedding_function=OpenAIEmbeddings(),

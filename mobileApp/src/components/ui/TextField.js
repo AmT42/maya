@@ -7,6 +7,7 @@ const TextField = ({
   value,
   onChangeText,
   placeholder,
+  autoFocus,
   secureTextEntry,
   keyboardType,
   autoCapitalize,
@@ -31,6 +32,7 @@ const TextField = ({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={theme.colors.muted}
+        autoFocus={autoFocus}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}

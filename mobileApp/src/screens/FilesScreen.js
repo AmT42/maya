@@ -15,6 +15,8 @@ import Screen from '../components/ui/Screen';
 import SegmentedControl from '../components/ui/SegmentedControl';
 import IconButton from '../components/ui/IconButton';
 import EmptyState from '../components/ui/EmptyState';
+import Button from '../components/ui/Button';
+import {useUser} from '../contexts/UserContext';
 import {useTheme} from '../theme/theme';
 import {buildStorageUrl} from '../utils/storageUrl';
 
@@ -28,6 +30,7 @@ const sortByDateDesc = documents => {
 
 const FilesScreen = ({navigation}) => {
   const theme = useTheme();
+  const {user} = useUser();
   const [tab, setTab] = useState('recents'); // recents | browse
 
   const [recentsLoading, setRecentsLoading] = useState(false);
@@ -43,8 +46,11 @@ const FilesScreen = ({navigation}) => {
   const [previewVisible, setPreviewVisible] = useState(false);
 
   const pageTitle = useMemo(() => {
+    if (!user) {
+      return 'Library';
+    }
     if (tab === 'recents') {
-      return 'Files';
+      return 'Library';
     }
     if (path.length === 0) {
       return 'Categories';
@@ -53,9 +59,15 @@ const FilesScreen = ({navigation}) => {
       return path[0];
     }
     return path[1];
-  }, [path, tab]);
+  }, [path, tab, user]);
 
   const fetchRecents = useCallback(async () => {
+    if (!user) {
+      setRecents([]);
+      setRecentsLoading(false);
+      return;
+    }
+
     setRecentsLoading(true);
     try {
       const response = await apiClient.get('/user/documents_filter');
@@ -65,9 +77,16 @@ const FilesScreen = ({navigation}) => {
     } finally {
       setRecentsLoading(false);
     }
-  }, []);
+  }, [user]);
 
   const fetchBrowse = useCallback(async () => {
+    if (!user) {
+      setFolders([]);
+      setDocs([]);
+      setBrowseLoading(false);
+      return;
+    }
+
     setBrowseLoading(true);
     try {
       const endpoint = '/user/documents';
@@ -89,7 +108,7 @@ const FilesScreen = ({navigation}) => {
     } finally {
       setBrowseLoading(false);
     }
-  }, [path]);
+  }, [path, user]);
 
   useEffect(() => {
     fetchRecents();
@@ -126,6 +145,49 @@ const FilesScreen = ({navigation}) => {
       style={{marginLeft: 12}}
     />
   );
+
+  if (!user) {
+    return (
+      <Screen>
+        <View style={styles.header}>
+          <View style={{flex: 1}}>
+            <Text style={[styles.headerTitle, {color: theme.colors.text}]}>
+              {pageTitle}
+            </Text>
+            <Text
+              style={[
+                styles.headerSubtitle,
+                {color: theme.colors.textSecondary},
+              ]}>
+              Sign in to save & search
+            </Text>
+          </View>
+          {headerRight}
+        </View>
+
+        <View style={styles.guestContent}>
+          <EmptyState
+            title="Guest mode"
+            subtitle="Scan instantly. Sign in to build your library, organize, and search."
+            icon="lock-closed-outline"
+          />
+          <Button
+            title="Sign in"
+            icon="log-in-outline"
+            onPress={() => navigation.navigate('Auth')}
+            style={{marginTop: 16}}
+          />
+          <Button
+            title="Scan a document"
+            variant="secondary"
+            icon="scan-outline"
+            onPress={() => navigation.navigate('Scan')}
+            style={{marginTop: 12}}
+          />
+        </View>
+      </Screen>
+    );
+  }
 
   const renderRecent = ({item}) => {
     return (
@@ -380,7 +442,7 @@ const FilesScreen = ({navigation}) => {
   );
 };
 
-const styles = StyleSheet.create({
+  const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingTop: 8,
@@ -429,6 +491,11 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
+    paddingBottom: 110,
+  },
+  guestContent: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
     paddingBottom: 110,
   },
   recentRow: {
