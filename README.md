@@ -9,7 +9,8 @@ This repo contains:
 ## Core Capabilities
 
 - **Scan documents on mobile** with live border detection (`react-native-document-scanner-plugin`)
-- **Upload + classify + extract fields** (backend pipeline: OCR → LLM extraction → persistence)
+- **Add from Photos or Files** (PDFs + images) — choose a photo or a file instead of scanning
+- **Upload + classify + extract fields** (backend pipeline: multimodal LLM via OpenRouter → persistence)
 - **Auto-organization** into a folder-like hierarchy: `doctype/expediteur/date`
 - **Browse documents** like folders (doctype → expediteur → documents)
 - **Preview scanned images** served from backend `/storage/...`
@@ -27,15 +28,15 @@ iPhone (React Native)
            v
 FastAPI (app/main.py)
   - Auth: /register, /login, /users/me
-  - Upload: /upload (stores image + extracts info)
+  - Upload: /upload (stores image + extracts info via OpenRouter)
   - Validate: /validate (finalize classification + move file)
   - Browse: /user/documents
   - Search: /user/search (Chroma)
+  - Chat: /chat and /chat/stream (OpenRouter)
            |
            +--> Postgres (documents + users)
            +--> /storage static files (images)
-           +--> (optional) Google Vision OCR
-           +--> (optional) OpenAI LLM extraction
+           +--> (optional) OpenRouter (Gemini 3 Flash)
            +--> (optional) ChromaDB semantic search
            +--> (optional) Google Calendar events
 ```
@@ -123,12 +124,12 @@ Mobile:
 - Ensure `mobileApp/ios/mobileApp/Info.plist` contains the reversed client ID URL scheme.
 - Install deps and pods: `cd mobileApp && npm install && cd ios && pod install`.
 
-### Full mode (OCR/LLM/RAG)
+### Full mode (AI analysis + RAG)
 Provide credentials/keys in `.env`:
-- `OPENAI_API_KEY`
-- `GOOGLE_CREDENTIALS_PATH` (Vision)
-- `GOOGLE_SA_CREDENTIALS` (Calendar service account)
+- `OPENROUTER_API_KEY` (Gemini 3 Flash via OpenRouter)
+- `OPENAI_API_KEY` (still used for Chroma embeddings)
 - `ADMIN` (Chroma basic auth)
+- `GOOGLE_SA_CREDENTIALS` (Calendar service account, optional)
 
 ## Troubleshooting
 
@@ -136,6 +137,7 @@ Provide credentials/keys in `.env`:
 - **Flipper build errors**: Flipper is disabled in `mobileApp/ios/Podfile` to avoid toolchain issues.
 - **iOS deployment target**: set to iOS 13+ (required by the scanner plugin).
 - **iPhone can’t reach backend**: check Wi‑Fi isolation and macOS firewall; verify `http://<mac-ip>:8000/docs` loads on the iPhone.
+- **PDF import says “no extractable text”**: the PDF is likely a scanned image-only PDF; use Scan instead (or run OCR on the PDF first).
 
 ## More docs
 - iOS setup notes: `docs/ios-setup.md`

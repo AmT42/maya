@@ -10,6 +10,9 @@ import {useUser} from '../contexts/UserContext';
 import {useTheme} from '../theme/theme';
 import {buildStorageUrl} from '../utils/storageUrl';
 
+const isPdfPath = filePath =>
+  (filePath || '').toString().toLowerCase().endsWith('.pdf');
+
 const SearchScreen = ({navigation}) => {
   const theme = useTheme();
   const {user} = useUser();
@@ -40,6 +43,8 @@ const SearchScreen = ({navigation}) => {
   };
 
   const renderItem = ({item}) => {
+    const filePath = item.file_path;
+    const isPdf = isPdfPath(filePath);
     return (
       <View
         style={[
@@ -49,11 +54,21 @@ const SearchScreen = ({navigation}) => {
             borderColor: theme.colors.border,
           },
         ]}>
-        <View style={styles.thumb}>
-          <Image
-            source={{uri: buildStorageUrl(item.file_path)}}
-            style={styles.thumbImage}
-          />
+        <View style={[styles.thumb, {backgroundColor: theme.colors.surface2}]}>
+          {isPdf ? (
+            <View style={styles.thumbPlaceholder}>
+              <Icon
+                name="document-text-outline"
+                size={18}
+                color={theme.colors.accent}
+              />
+            </View>
+          ) : (
+            <Image
+              source={{uri: buildStorageUrl(filePath)}}
+              style={styles.thumbImage}
+            />
+          )}
         </View>
         <View style={{flex: 1}}>
           <Text
@@ -227,6 +242,11 @@ const styles = StyleSheet.create({
   thumbImage: {
     width: '100%',
     height: '100%',
+  },
+  thumbPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 15,

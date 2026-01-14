@@ -344,7 +344,13 @@ PODS:
   - React-jsinspector (0.72.5)
   - React-logger (0.72.5):
     - glog
+  - react-native-document-picker (9.3.1):
+    - RCT-Folly (= 2021.07.22.00)
+    - React-Core
   - react-native-document-scanner-plugin (0.9.1):
+    - React-Core
+  - react-native-image-picker (7.2.3):
+    - RCT-Folly (= 2021.07.22.00)
     - React-Core
   - react-native-safe-area-context (4.7.2):
     - React-Core
@@ -532,7 +538,9 @@ DEPENDENCIES:
   - React-jsiexecutor (from `../node_modules/react-native/ReactCommon/jsiexecutor`)
   - React-jsinspector (from `../node_modules/react-native/ReactCommon/jsinspector`)
   - React-logger (from `../node_modules/react-native/ReactCommon/logger`)
+  - react-native-document-picker (from `../node_modules/react-native-document-picker`)
   - react-native-document-scanner-plugin (from `../node_modules/react-native-document-scanner-plugin`)
+  - react-native-image-picker (from `../node_modules/react-native-image-picker`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - "react-native-viewpager (from `../node_modules/@react-native-community/viewpager`)"
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
@@ -619,8 +627,12 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/jsinspector"
   React-logger:
     :path: "../node_modules/react-native/ReactCommon/logger"
+  react-native-document-picker:
+    :path: "../node_modules/react-native-document-picker"
   react-native-document-scanner-plugin:
     :path: "../node_modules/react-native-document-scanner-plugin"
+  react-native-image-picker:
+    :path: "../node_modules/react-native-image-picker"
   react-native-safe-area-context:
     :path: "../node_modules/react-native-safe-area-context"
   react-native-viewpager:
@@ -709,7 +721,9 @@ SPEC CHECKSUMS:
   React-jsiexecutor: 7b950ed139738f2a446a9c0691ef0d07df3fb89e
   React-jsinspector: aef73cbd43b70675f572214d10fa438c89bf11ba
   React-logger: 984811296d6ce8fb1c1619cc8752c1029916d917
+  react-native-document-picker: c586098a24ae21bd44b1bd601e403c2b32854f38
   react-native-document-scanner-plugin: 785325581d4af62ebaa2a5181e4a78416822bd28
+  react-native-image-picker: cba6dcdcae82084cf3865b871f3e5d161e6b0333
   react-native-safe-area-context: 9fdf214647353ab717139d164c9e1f163045eb1c
   react-native-viewpager: ddaf7a06b1864faed597e6742306a8d24c3e0785
   React-NativeModulesApple: d57608e52c875d2b952b68afd0d8f0543d690c3d

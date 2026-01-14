@@ -8,7 +8,8 @@ from typing import Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body,Query 
+from fastapi import FastAPI, Depends, HTTPException, Form, File, UploadFile, Header, Request, Body, Query
+from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +22,8 @@ from langchain.docstore.document import Document as ChromaDocument
 from db.session import SessionLocal
 from db.models import Document, User
 from db.schemas import (
+    ChatRequest,
+    ChatResponse,
     GoogleAuthRequest,
     RefreshTokenRequest,
     TokenResponse,
@@ -40,10 +43,12 @@ from utils.security import (
 from services.calendar.google_calendar import create_event
 
 from core.config import settings
-from services.chatgpt.llm import chatgpt
-from services.ocr import ocr 
+from services.chat.chat_service import get_chat_service
+from services.document_ai.analyzer import get_document_analyzer
 from services.chroma_db.db import get_chroma_db, get_chroma_db_json, text_splitter
+from services.llm.base import LLMError
 from utils.date_fmt import convert_date_format
+from utils.pdf_text import extract_pdf_text
 
 import logging
 from pathlib import Path
@@ -246,35 +251,93 @@ def read_users_me(current_user: User = Depends(get_current_user)):
         "created_at": current_user.created_at,
     }
 
+
+@app.post("/chat", response_model=ChatResponse)
+@limiter.limit("30/minute")
+def chat(request: Request, payload: ChatRequest, current_user: User = Depends(get_current_user)):
+    if DEV_MODE:
+        return {"message": {"role": "assistant", "content": "DEV mode: chat disabled"}}
+    try:
+        message = get_chat_service().complete([m.dict() for m in payload.messages])
+        return {"message": message}
+    except LLMError:
+        logger.error("Chat LLM request failed")
+        raise HTTPException(status_code=502, detail="Chat LLM request failed")
+
+
+@app.post("/chat/stream")
+@limiter.limit("30/minute")
+def chat_stream(request: Request, payload: ChatRequest, current_user: User = Depends(get_current_user)):
+    if DEV_MODE:
+        def _dev_stream():
+            yield b"data: DEV mode: chat disabled\n\n"
+            yield b"data: [DONE]\n\n"
+
+        return StreamingResponse(_dev_stream(), media_type="text/event-stream")
+    try:
+        stream = get_chat_service().stream([m.dict() for m in payload.messages])
+        return StreamingResponse(stream, media_type="text/event-stream")
+    except LLMError:
+        logger.error("Chat LLM streaming request failed")
+        raise HTTPException(status_code=502, detail="Chat LLM streaming request failed")
+
 @app.post("/upload")
 @limiter.limit("5/minute")
 def upload_document(request: Request, 
                     file: UploadFile = File(...), 
                     db: Session = Depends(get_db),
-                    chroma_db = Depends(get_chroma_db),
                     current_user = Depends(get_current_user)):
     try: 
-        content_type = file.content_type
+        content_type = (file.content_type or "").lower()
+        filename = (file.filename or "").strip()
+        suffix = Path(filename).suffix.lower()
+
+        is_pdf = content_type == "application/pdf" or suffix == ".pdf"
+        is_image = content_type.startswith("image/") or suffix in {".jpg", ".jpeg", ".png", ".webp"}
 
         # Generate a unique ID for the document
         doc_id = uuid4()
-        logger.info(f'CONTENT TYPE {content_type}')
+        logger.info(f"UPLOAD content_type={content_type} filename={filename}")
 
-        # Determine if we received an image or text
-        if content_type.startswith("image/"):
-            file_path =  f'storage/{TEMP_STORAGE}/{doc_id}.jpg'
+        file_path = None
+        raw_text = ""
+
+        # Determine if we received an image, PDF, or text
+        if is_image:
+            supported_exts = {".jpg", ".jpeg", ".png", ".webp"}
+            ext = suffix if suffix in supported_exts else ""
+            if not ext:
+                if content_type in {"image/jpeg", "image/jpg"}:
+                    ext = ".jpg"
+                elif content_type == "image/png":
+                    ext = ".png"
+                elif content_type == "image/webp":
+                    ext = ".webp"
+
+            if ext not in supported_exts:
+                raise ValueError("Unsupported image type. Please upload a JPG, PNG, or WebP.")
+
+            if ext == ".jpeg":
+                ext = ".jpg"
+            file_path = f"storage/{TEMP_STORAGE}/{doc_id}{ext}"
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            logger.info("Saving")
-            with open(file_path, "wb") as f:   ## add size checking condition 
-                f.write(file.file.read())  
-                logger.info("SAVED")
-            if DEV_MODE:
-                ocr_text = ""
-            else:
-                ocr_text = ocr.call_ocr(file_path)
+            with open(file_path, "wb") as out:
+                shutil.copyfileobj(file.file, out)
+        elif is_pdf:
+            file_path = f"storage/{TEMP_STORAGE}/{doc_id}.pdf"
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            pdf_bytes = file.file.read()
+            with open(file_path, "wb") as out:
+                out.write(pdf_bytes)
+
+            if not DEV_MODE:
+                raw_text = extract_pdf_text(pdf_bytes)
+                if not raw_text:
+                    raise ValueError(
+                        "PDF contains no extractable text. Try an OCR'd PDF or scan an image instead."
+                    )
         else:
-            ocr_text = file.file.read().decode()
-        logger.info(f'OCR TEXT {ocr_text}')
+            raw_text = file.file.read().decode(errors="ignore")
         file.file.close()
 
         if DEV_MODE:
@@ -286,15 +349,33 @@ def upload_document(request: Request,
                 "recapitulatif": "dev mode upload",
                 "google_calendar": None,
             }
+            raw_text_for_chroma = ""
         else:
-            extracted_info = chatgpt.call_gpt(text = ocr_text)
+            analyzer = get_document_analyzer()
+            if is_image and file_path:
+                analysis = analyzer.analyze_image_paths([file_path])
+            else:
+                analysis = analyzer.analyze_text(raw_text)
+
+            extracted_info = {
+                "doctype": (analysis.get("doctype") or "document"),
+                "date": (analysis.get("date") or datetime.utcnow().strftime("%d/%m/%Y")),
+                "expediteur": (analysis.get("expediteur") or "unknown"),
+                "recapitulatif": (analysis.get("recapitulatif") or ""),
+                "google_calendar": analysis.get("google_calendar"),
+            }
+            raw_text_for_chroma = analysis.get("raw_text") or ""
         logger.info(extracted_info)
         # Store the extracted information in the database
+        try:
+            stored_date = convert_date_format(extracted_info["date"])
+        except Exception:
+            stored_date = convert_date_format(datetime.utcnow().strftime("%d/%m/%Y"))
         new_document = Document(
             id = doc_id,
-            file_path = file_path if content_type.startswith("image") else None, 
+            file_path = file_path, 
             doctype = extracted_info["doctype"].lower().strip(),
-            date = convert_date_format(extracted_info["date"]),
+            date = stored_date,
             expediteur = extracted_info["expediteur"].lower().strip(),
             recapitulatif=extracted_info['recapitulatif'].lower().strip(),
             google_calendar = extracted_info['google_calendar'],
@@ -305,20 +386,25 @@ def upload_document(request: Request,
         
         doc_id = str(doc_id)
         if not DEV_MODE:
-            # From text to Chroma.Document object
-            raw_docs = [ChromaDocument(page_content = ocr_text, metadata = {"type":"ocr", "id":doc_id})]
+            if raw_text_for_chroma:
+                try:
+                    chroma_db = get_chroma_db()
+                    # From text to Chroma.Document object
+                    raw_docs = [ChromaDocument(page_content=raw_text_for_chroma, metadata={"type": "raw_text", "id": doc_id})]
 
-            # Split document into chunks
-            docs = text_splitter.split_documents(raw_docs)
+                    # Split document into chunks
+                    docs = text_splitter.split_documents(raw_docs)
 
-            # Get unique Id per chunk
-            ids = [f"{doc_id}-{i}" for i in range(len(docs))]
-            logger.info(f'IDS {ids} doc_id {doc_id}')
-            logger.info(docs)
-            # Add to the chroma vdb with its corresponding ids
-            chroma_db.add_documents(docs, ids = ids)
+                    # Get unique Id per chunk
+                    ids = [f"{doc_id}-{i}" for i in range(len(docs))]
+                    logger.info(f'IDS {ids} doc_id {doc_id}')
+                    # Add to the chroma vdb with its corresponding ids
+                    chroma_db.add_documents(docs, ids = ids)
 
-            logger.info("DOCUMENT ADDED TO CHROMA")
+                    logger.info("DOCUMENT ADDED TO CHROMA")
+                except Exception:
+                    logger.error("Chroma ingestion failed (skipping)")
+                    logger.error(traceback.format_exc())
         return {
             "doc_id" : doc_id,
             "extracted_info" : extracted_info
@@ -328,6 +414,10 @@ def upload_document(request: Request,
         logger.error(f'Value error: {ve}')
         db.rollback()
         raise HTTPException(status_code = 400, detail = str(ve))
+    except LLMError:
+        logger.error("Document AI request failed")
+        db.rollback()
+        raise HTTPException(status_code=502, detail="Document AI request failed")
     except IOError as ioe:
         logger.error(f"I/O error {ioe}")
         db.rollback()
@@ -344,8 +434,7 @@ def upload_document(request: Request,
 def validate(request: Request, 
              validated_info: ValidatedInfo,
              current_user: User = Depends(get_current_user),
-             db: Session = Depends(get_db),
-             chroma_db = Depends(get_chroma_db_json)):
+             db: Session = Depends(get_db)):
     try:
         # Read the validated for receiving the validated information
         doc_id = validated_info.doc_id
@@ -370,28 +459,39 @@ def validate(request: Request,
             directory = f"storage/{user_id}/{info['doctype']}/{info['expediteur'].replace('/','-')}/"
             if not os.path.exists(directory):
                 os.makedirs(directory)
-            final_file_path = f'{directory}{info["date"].replace("/","-")}.jpg'
+            ext = os.path.splitext(document_to_update.file_path)[1].lower() or ".jpg"
+            final_file_path = f'{directory}{info["date"].replace("/","-")}{ext}'
             shutil.move(document_to_update.file_path, final_file_path)
             document_to_update.file_path = final_file_path
         # Commit the changes
         db.commit()
 
         if not DEV_MODE:
-            # Convert validated info to semantic format and store in Chroma DB (if needed)
-            # validated_info_semantic = chatgpt.json2semantic(info)
-            # From text to document
-            json_docs = [ChromaDocument(page_content = json.dumps(info), metadata = {"type":"chatgpt", "id": doc_id})]
+            try:
+                chroma_db = get_chroma_db_json()
+                # Convert validated info to semantic format and store in Chroma DB (if needed)
+                # validated_info_semantic = chatgpt.json2semantic(info)
+                # From text to document
+                json_docs = [ChromaDocument(page_content = json.dumps(info), metadata = {"type":"chatgpt", "id": doc_id})]
 
-            # Split document into chunks
-            docs = text_splitter.split_documents(json_docs)
+                # Split document into chunks
+                docs = text_splitter.split_documents(json_docs)
 
-            # Get unique Id per chunk
-            ids = [f'{doc_id}-{i}' for i in range(len(docs))]
+                # Get unique Id per chunk
+                ids = [f'{doc_id}-{i}' for i in range(len(docs))]
 
-            # Add to the chroma vdb with its corresponding ids 
-            chroma_db.add_documents(docs, ids = ids) 
-            #create event in google calendar
-            create_event(info)
+                # Add to the chroma vdb with its corresponding ids 
+                chroma_db.add_documents(docs, ids = ids) 
+            except Exception:
+                logger.error("Chroma ingestion failed (skipping)")
+                logger.error(traceback.format_exc())
+            # Create a Google Calendar event only when a deadline exists.
+            if info.get("google_calendar"):
+                try:
+                    create_event(info)
+                except Exception:
+                    logger.error("Google Calendar event creation failed")
+                    logger.error(traceback.format_exc())
 
         return {"doc_id": doc_id,
                 "validated_info": info}

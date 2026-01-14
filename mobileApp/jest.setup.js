@@ -8,6 +8,25 @@ jest.mock('react-native-document-scanner-plugin', () => ({
   scanDocument: jest.fn(async () => ({scannedImages: []})),
 }));
 
+jest.mock('react-native-document-picker', () => ({
+  types: {
+    images: 'public.image',
+    pdf: 'com.adobe.pdf',
+  },
+  pickSingle: jest.fn(async () => {
+    const err = new Error('DocumentPicker cancelled');
+    err.code = 'DOCUMENT_PICKER_CANCELED';
+    throw err;
+  }),
+  pick: jest.fn(async () => []),
+  isCancel: jest.fn(err => err?.code === 'DOCUMENT_PICKER_CANCELED'),
+}));
+
+jest.mock('react-native-image-picker', () => ({
+  launchCamera: jest.fn(async () => ({didCancel: true})),
+  launchImageLibrary: jest.fn(async () => ({didCancel: true})),
+}));
+
 jest.mock('@react-navigation/native/src/useBackButton.native', () => () => {});
 jest.mock(
   '@react-navigation/native/lib/commonjs/useBackButton.native',
