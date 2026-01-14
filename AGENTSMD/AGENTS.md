@@ -22,7 +22,7 @@ Primary user flow:
 
 There are **two operational modes**:
 - **DEV mode** (`MAYA_DEV_MODE=1`): no OCR/LLM/Chroma/Calendar required; backend returns mocked extraction so mobile UX can be developed without credentials.
-- **Full mode**: requires Google Vision + OpenAI + Chroma + Google Calendar credentials.
+- **Full mode**: requires OpenRouter (Gemini) + Chroma (+ OpenAI key for embeddings) and optional Google Calendar credentials.
 
 ---
 
@@ -41,8 +41,9 @@ Backend (important files):
 - `app/db/models.py` — SQLAlchemy `User` and `Document`
 - `app/db/session.py` — SQLAlchemy engine + `create_all` (runs at import time)
 - `app/utils/security.py` — JWT + password hashing
-- `app/services/ocr/ocr.py` — Google Vision OCR (lazy client init)
-- `app/services/chatgpt/llm.py` — LLM extraction (LangChain, old)
+- `app/services/llm/openrouter_client.py` — OpenRouter OpenAI-compatible gateway (multimodal + streaming)
+- `app/services/document_ai/analyzer.py` — document extraction/classification via multimodal LLM
+- `app/services/chat/chat_service.py` — user-facing chat via OpenRouter (streaming supported)
 - `app/services/chroma_db/db.py` — Chroma client (lazy, dummy in dev mode)
 - `app/services/calendar/google_calendar.py` — Google Calendar event creation
 - `app/utils/date_fmt.py` — date formatting helpers
@@ -283,4 +284,3 @@ Longer-term fix (future work):
 - Add DB readiness/wait logic and/or Alembic migrations.
 - Replace old LangChain/ChatGPT integration with a modern extraction pipeline.
 - Improve search reliability and UX (RAG, filters, summaries).
-

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import List, Literal, Optional
 
 class LoginRequest(BaseModel):
     username: str
@@ -32,3 +32,16 @@ class UserPublic(BaseModel):
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     created_at: Optional[datetime] = None
+
+
+class ChatMessage(BaseModel):
+    role: Literal["system", "user", "assistant"]
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage]
+
+
+class ChatResponse(BaseModel):
+    message: ChatMessage

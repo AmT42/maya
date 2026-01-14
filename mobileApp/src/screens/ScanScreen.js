@@ -1,9 +1,21 @@
 import React, {useCallback, useMemo, useState} from 'react';
-import {Alert, Image, Pressable, Share, StyleSheet, Text, View} from 'react-native';
+import {
+  ActionSheetIOS,
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {useFocusEffect} from '@react-navigation/native';
 import DocumentScanner from 'react-native-document-scanner-plugin';
+import DocumentPicker from 'react-native-document-picker';
+import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 import apiClient from '../services/apiClient';
 import Screen from '../components/ui/Screen';
 import BottomSheet from '../components/ui/BottomSheet';
@@ -13,6 +25,60 @@ import {useUser} from '../contexts/UserContext';
 import {useTheme} from '../theme/theme';
 
 const AUTO_SCAN_KEY = 'maya_auto_scan_v2';
+const MAX_IMPORT_BYTES = 15 * 1024 * 1024;
+
+const guessMimeType = (filename = '') => {
+  const ext = filename.toLowerCase().split('.').pop();
+  if (ext === 'jpg' || ext === 'jpeg') {
+    return 'image/jpeg';
+  }
+  if (ext === 'png') {
+    return 'image/png';
+  }
+  if (ext === 'webp') {
+    return 'image/webp';
+  }
+  if (ext === 'heic' || ext === 'heif') {
+    return 'image/heic';
+  }
+  if (ext === 'pdf') {
+    return 'application/pdf';
+  }
+  if (ext === 'txt') {
+    return 'text/plain';
+  }
+  return 'application/octet-stream';
+};
+
+const getAttachmentKind = (mimeType = '', filename = '') => {
+  const type = mimeType.toLowerCase();
+  const name = filename.toLowerCase();
+  if (type.startsWith('image/')) {
+    return 'image';
+  }
+  if (type === 'application/pdf' || name.endsWith('.pdf')) {
+    return 'pdf';
+  }
+  if (type.startsWith('text/')) {
+    return 'text';
+  }
+  return 'file';
+};
+
+const formatBytes = bytes => {
+  if (typeof bytes !== 'number' || Number.isNaN(bytes)) {
+    return '';
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  const kb = bytes / 1024;
+  if (kb < 1024) {
+    return `${kb.toFixed(0)} KB`;
+  }
+  const mb = kb / 1024;
+  return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
+};
 
 const formatDateDDMMYYYY = date => {
   const d = date instanceof Date ? date : new Date(date);
@@ -41,11 +107,36 @@ const ScanScreen = ({navigation}) => {
   const isSignedIn = Boolean(user);
 
   const [busy, setBusy] = useState(false);
-  const [previewUri, setPreviewUri] = useState('');
+  const [attachment, setAttachment] = useState(null);
   const [docId, setDocId] = useState('');
   const [sheetVisible, setSheetVisible] = useState(false);
   const [sheetVariant, setSheetVariant] = useState('review'); // review | guest
   const [info, setInfo] = useState(normalizeInfo(null));
+
+  const previewUri = attachment?.kind === 'image' ? attachment.uri : '';
+
+  const attachmentLabel = useMemo(() => {
+    if (attachment?.source === 'import') {
+      return 'Imported';
+    }
+    if (attachment?.source === 'photo') {
+      return 'Photo';
+    }
+    return 'Scanned';
+  }, [attachment?.source]);
+
+  const attachmentHint = useMemo(() => {
+    if (!attachment) {
+      return '';
+    }
+    if (!isSignedIn) {
+      return `${attachmentLabel} • Share or sign in to save`;
+    }
+    if (docId) {
+      return `${attachmentLabel} • Save to your library`;
+    }
+    return `${attachmentLabel} • Upload to analyze`;
+  }, [attachment, attachmentLabel, docId, isSignedIn]);
 
   const canConfirm = useMemo(() => {
     return info.doctype.trim() && info.expediteur.trim() && info.date.trim();
@@ -53,25 +144,65 @@ const ScanScreen = ({navigation}) => {
 
   const resetState = useCallback(() => {
     setSheetVisible(false);
-    setPreviewUri('');
+    setAttachment(null);
     setDocId('');
     setInfo(normalizeInfo(null));
     setSheetVariant('review');
   }, []);
 
   const shareScan = useCallback(async () => {
-    if (!previewUri) {
+    if (!attachment?.uri) {
       return;
     }
     try {
       await Share.share({
-        url: previewUri,
+        url: attachment.uri,
         message: 'Scanned with Maya',
       });
     } catch (e) {
       // Ignore share cancellations / errors.
     }
-  }, [previewUri]);
+  }, [attachment?.uri]);
+
+  const processAttachment = useCallback(
+    async nextAttachment => {
+      setSheetVisible(false);
+      setSheetVariant('review');
+      setAttachment(nextAttachment);
+      setDocId('');
+      setInfo(normalizeInfo(null));
+
+      if (!isSignedIn) {
+        setSheetVariant('guest');
+        setSheetVisible(true);
+        return;
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append('file', {
+          uri: nextAttachment.uri,
+          type: nextAttachment.type,
+          name: nextAttachment.name,
+        });
+
+        const response = await apiClient.post('/upload', formData);
+        if (response.data?.doc_id && response.data?.extracted_info) {
+          setDocId(response.data.doc_id);
+          setInfo(normalizeInfo(response.data.extracted_info));
+          setSheetVariant('review');
+          setSheetVisible(true);
+        } else {
+          Alert.alert('Upload failed', 'Could not parse server response.');
+        }
+      } catch (e) {
+        const detail =
+          e?.response?.data?.detail || e?.message || 'Please try again.';
+        Alert.alert('Upload failed', detail.toString());
+      }
+    },
+    [isSignedIn],
+  );
 
   const scan = useCallback(async () => {
     try {
@@ -86,36 +217,260 @@ const ScanScreen = ({navigation}) => {
       }
 
       const uri = scannedImages[0];
-      setPreviewUri(uri);
-
-      if (!isSignedIn) {
-        setSheetVariant('guest');
-        setSheetVisible(true);
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('file', {
+      await processAttachment({
         uri,
         type: 'image/jpeg',
         name: 'scan.jpg',
+        kind: 'image',
+        source: 'scan',
       });
-
-      const response = await apiClient.post('/upload', formData);
-      if (response.data?.doc_id && response.data?.extracted_info) {
-        setDocId(response.data.doc_id);
-        setInfo(normalizeInfo(response.data.extracted_info));
-        setSheetVariant('review');
-        setSheetVisible(true);
-      } else {
-        Alert.alert('Upload failed', 'Could not parse server response.');
-      }
     } catch (e) {
       Alert.alert('Scan failed', 'Please try again.');
     } finally {
       setBusy(false);
     }
-  }, [isSignedIn]);
+  }, [processAttachment]);
+
+  const handlePickedImage = useCallback(
+    async (asset, source) => {
+      const uri = asset?.uri;
+      if (!uri) {
+        Alert.alert('Photo failed', 'Could not access the selected photo.');
+        return;
+      }
+
+      const name = asset?.fileName || `photo-${Date.now()}.jpg`;
+      const type = (asset?.type || guessMimeType(name)).toLowerCase();
+      const size = typeof asset?.fileSize === 'number' ? asset.fileSize : null;
+
+      if (size && size > MAX_IMPORT_BYTES) {
+        Alert.alert(
+          'File too large',
+          `Please choose a photo under ${formatBytes(MAX_IMPORT_BYTES)}.`,
+        );
+        return;
+      }
+
+      setBusy(true);
+      try {
+        await processAttachment({
+          uri,
+          type,
+          name,
+          kind: 'image',
+          size,
+          source,
+        });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [processAttachment],
+  );
+
+  const chooseFromPhotos = useCallback(async () => {
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      selectionLimit: 1,
+      quality: 0.9,
+      maxWidth: 2000,
+      maxHeight: 2000,
+      includeBase64: false,
+      assetRepresentationMode: 'compatible',
+    });
+
+    if (result.didCancel) {
+      return;
+    }
+    if (result.errorCode) {
+      Alert.alert(
+        'Photo failed',
+        result.errorMessage || 'Could not open Photos.',
+      );
+      return;
+    }
+
+    await handlePickedImage(result.assets?.[0], 'photo');
+  }, [handlePickedImage]);
+
+  const takePhoto = useCallback(async () => {
+    const result = await launchCamera({
+      mediaType: 'photo',
+      cameraType: 'back',
+      quality: 0.9,
+      maxWidth: 2000,
+      maxHeight: 2000,
+      includeBase64: false,
+      saveToPhotos: false,
+      assetRepresentationMode: 'compatible',
+    });
+
+    if (result.didCancel) {
+      return;
+    }
+    if (result.errorCode) {
+      Alert.alert(
+        'Camera failed',
+        result.errorMessage || 'Could not open the camera.',
+      );
+      return;
+    }
+
+    await handlePickedImage(result.assets?.[0], 'photo');
+  }, [handlePickedImage]);
+
+  const addPhoto = useCallback(() => {
+    const open = option => {
+      if (option === 'camera') {
+        takePhoto();
+      }
+      if (option === 'library') {
+        chooseFromPhotos();
+      }
+    };
+
+    if (Platform.OS === 'ios') {
+      const options = ['Take photo', 'Choose from Photos', 'Cancel'];
+      ActionSheetIOS.showActionSheetWithOptions(
+        {options, cancelButtonIndex: 2},
+        index => {
+          if (index === 0) {
+            open('camera');
+          }
+          if (index === 1) {
+            open('library');
+          }
+        },
+      );
+      return;
+    }
+
+    Alert.alert('Add photo', 'Choose a source', [
+      {text: 'Take photo', onPress: () => open('camera')},
+      {text: 'Choose from Photos', onPress: () => open('library')},
+      {text: 'Cancel', style: 'cancel'},
+    ]);
+  }, [chooseFromPhotos, takePhoto]);
+
+  const importFile = useCallback(async () => {
+    let picked;
+    try {
+      const options = {
+        type: [DocumentPicker.types.images, DocumentPicker.types.pdf],
+        copyTo: 'cachesDirectory',
+        mode: 'import',
+        presentationStyle: 'pageSheet',
+      };
+      if (DocumentPicker.pickSingle) {
+        picked = await DocumentPicker.pickSingle(options);
+      } else {
+        const results = await DocumentPicker.pick(options);
+        picked = results?.[0];
+      }
+    } catch (e) {
+      if (DocumentPicker.isCancel?.(e)) {
+        return;
+      }
+      Alert.alert('Import failed', 'Could not open the file picker.');
+      return;
+    }
+
+    const uri = picked?.fileCopyUri || picked?.uri;
+    if (!uri) {
+      Alert.alert('Import failed', 'Could not access the selected file.');
+      return;
+    }
+
+    const name = picked?.name || 'upload';
+    const type = (picked?.type || guessMimeType(name)).toLowerCase();
+    const kind = getAttachmentKind(type, name);
+    const size = typeof picked?.size === 'number' ? picked.size : null;
+
+    if (size && size > MAX_IMPORT_BYTES) {
+      Alert.alert(
+        'File too large',
+        `Please choose a file under ${formatBytes(MAX_IMPORT_BYTES)}.`,
+      );
+      return;
+    }
+
+    if (kind !== 'image' && kind !== 'pdf' && kind !== 'text') {
+      Alert.alert(
+        'Unsupported file',
+        'Please choose a PDF, image, or text document.',
+      );
+      return;
+    }
+
+    try {
+      setBusy(true);
+      await processAttachment({
+        uri,
+        type,
+        name,
+        kind,
+        size,
+        source: 'import',
+      });
+    } finally {
+      setBusy(false);
+    }
+  }, [processAttachment]);
+
+  const changeSource = useCallback(() => {
+    const run = key => {
+      if (key === 'scan') {
+        resetState();
+        scan();
+      }
+      if (key === 'photo') {
+        resetState();
+        addPhoto();
+      }
+      if (key === 'files') {
+        resetState();
+        importFile();
+      }
+    };
+
+    if (Platform.OS === 'ios') {
+      const options = ['Scan document', 'Add photo', 'Browse files', 'Cancel'];
+      ActionSheetIOS.showActionSheetWithOptions(
+        {options, cancelButtonIndex: 3},
+        index => {
+          if (index === 0) {
+            run('scan');
+          }
+          if (index === 1) {
+            run('photo');
+          }
+          if (index === 2) {
+            run('files');
+          }
+        },
+      );
+      return;
+    }
+
+    Alert.alert('Choose source', '', [
+      {text: 'Scan document', onPress: () => run('scan')},
+      {text: 'Add photo', onPress: () => run('photo')},
+      {text: 'Browse files', onPress: () => run('files')},
+      {text: 'Cancel', style: 'cancel'},
+    ]);
+  }, [addPhoto, importFile, resetState, scan]);
+
+  const uploadExisting = useCallback(async () => {
+    if (!attachment) {
+      return;
+    }
+    try {
+      setBusy(true);
+      await processAttachment(attachment);
+    } finally {
+      setBusy(false);
+    }
+  }, [attachment, processAttachment]);
 
   const confirm = useCallback(async () => {
     try {
@@ -140,7 +495,7 @@ const ScanScreen = ({navigation}) => {
       let cancelled = false;
 
       const run = async () => {
-        if (cancelled || busy || previewUri || sheetVisible) {
+        if (cancelled || busy || attachment || sheetVisible) {
           return;
         }
 
@@ -159,7 +514,7 @@ const ScanScreen = ({navigation}) => {
       return () => {
         cancelled = true;
       };
-    }, [busy, previewUri, scan, sheetVisible]),
+    }, [attachment, busy, scan, sheetVisible]),
   );
 
   return (
@@ -169,7 +524,7 @@ const ScanScreen = ({navigation}) => {
           <View style={{flex: 1}}>
             <Text style={[styles.title, {color: theme.colors.text}]}>Scan</Text>
             <Text style={[styles.subtitle, {color: theme.colors.textSecondary}]}>
-              Point. Capture. Done.
+              Scan, photo, or file. Done.
             </Text>
           </View>
           <Pressable
@@ -189,7 +544,7 @@ const ScanScreen = ({navigation}) => {
         </View>
 
         <View style={styles.center}>
-          {previewUri ? (
+          {attachment ? (
             <View style={{width: '100%'}}>
               <View
                 style={[
@@ -199,30 +554,79 @@ const ScanScreen = ({navigation}) => {
                     borderColor: theme.colors.border,
                   },
                 ]}>
-                <Image source={{uri: previewUri}} style={styles.preview} />
+                {attachment.kind === 'image' ? (
+                  <Image source={{uri: previewUri}} style={styles.preview} />
+                ) : (
+                  <View
+                    style={[
+                      styles.filePreview,
+                      {backgroundColor: theme.colors.surface2},
+                    ]}>
+                    <View
+                      style={[
+                        styles.fileIcon,
+                        {
+                          backgroundColor: theme.isDark
+                            ? 'rgba(255,255,255,0.06)'
+                            : 'rgba(0,0,0,0.06)',
+                        },
+                      ]}>
+                      <Icon
+                        name={
+                          attachment.kind === 'pdf'
+                            ? 'document-text-outline'
+                            : 'document-outline'
+                        }
+                        size={34}
+                        color={theme.colors.accent}
+                      />
+                    </View>
+                    <Text
+                      style={[styles.fileName, {color: theme.colors.text}]}
+                      numberOfLines={2}>
+                      {(attachment.name || 'Imported file').toString()}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.fileMeta,
+                        {color: theme.colors.textSecondary},
+                      ]}>
+                      {(attachment.kind || 'file').toString().toUpperCase()}
+                      {attachment.size ? ` • ${formatBytes(attachment.size)}` : ''}
+                    </Text>
+                  </View>
+                )}
                 <Text
                   style={[
                     styles.previewHint,
                     {color: theme.colors.textSecondary},
                   ]}>
-                  {isSignedIn
-                    ? 'Captured • Save to your library'
-                    : 'Captured • Share or sign in to save'}
+                  {attachmentHint}
                 </Text>
               </View>
 
               <View style={{marginTop: 14}}>
                 {isSignedIn ? (
-                  <Button
-                    title="Review & save"
-                    icon="checkmark-circle-outline"
-                    onPress={() => {
-                      setSheetVariant('review');
-                      setSheetVisible(true);
-                    }}
-                    disabled={busy || !docId}
-                    loading={busy && !docId}
-                  />
+                  docId ? (
+                    <Button
+                      title="Review & save"
+                      icon="checkmark-circle-outline"
+                      onPress={() => {
+                        setSheetVariant('review');
+                        setSheetVisible(true);
+                      }}
+                      disabled={busy}
+                      loading={busy}
+                    />
+                  ) : (
+                    <Button
+                      title="Upload & review"
+                      icon="cloud-upload-outline"
+                      onPress={uploadExisting}
+                      disabled={busy}
+                      loading={busy}
+                    />
+                  )
                 ) : (
                   <>
                     <Button
@@ -243,15 +647,42 @@ const ScanScreen = ({navigation}) => {
                 )}
 
                 <Button
-                  title="Scan again"
+                  title={
+                    attachment.source === 'import'
+                      ? 'Choose another file'
+                      : attachment.source === 'photo'
+                        ? 'Choose another photo'
+                      : 'Scan again'
+                  }
                   variant="ghost"
-                  icon="scan-outline"
+                  icon={
+                    attachment.source === 'import'
+                      ? 'folder-open-outline'
+                      : attachment.source === 'photo'
+                        ? 'images-outline'
+                        : 'scan-outline'
+                  }
                   onPress={() => {
                     resetState();
-                    scan();
+                    if (attachment.source === 'import') {
+                      importFile();
+                    } else if (attachment.source === 'photo') {
+                      addPhoto();
+                    } else {
+                      scan();
+                    }
                   }}
                   disabled={busy}
                   style={{marginTop: 10}}
+                />
+
+                <Button
+                  title="Change source"
+                  variant="ghost"
+                  icon="swap-horizontal-outline"
+                  onPress={changeSource}
+                  disabled={busy}
+                  style={{marginTop: 6}}
                 />
               </View>
             </View>
@@ -275,16 +706,39 @@ const ScanScreen = ({navigation}) => {
                   styles.readySubtitle,
                   {color: theme.colors.textSecondary},
                 ]}>
-                Tap Scan to capture your first document.
+                Tap Scan, Photos, or Files to add a document.
               </Text>
               <Button
-                title="Scan"
+                title="Scan document"
                 icon="scan-outline"
                 onPress={scan}
                 loading={busy}
                 disabled={busy}
                 style={{marginTop: 16, width: '100%'}}
               />
+              <View style={styles.readyRow}>
+                <Button
+                  title="Photos"
+                  variant="secondary"
+                  icon="images-outline"
+                  onPress={addPhoto}
+                  disabled={busy}
+                  style={{flex: 1}}
+                />
+                <View style={{width: 10}} />
+                <Button
+                  title="Files"
+                  variant="secondary"
+                  icon="folder-open-outline"
+                  onPress={importFile}
+                  disabled={busy}
+                  style={{flex: 1}}
+                />
+              </View>
+              <Text style={[styles.readyFootnote, {color: theme.colors.muted}]}>
+                Choose from Photos or Files (PDF/images), up to{' '}
+                {formatBytes(MAX_IMPORT_BYTES)}.
+              </Text>
             </View>
           )}
         </View>
@@ -292,12 +746,12 @@ const ScanScreen = ({navigation}) => {
 
       <BottomSheet
         visible={sheetVisible}
-        title={sheetVariant === 'guest' ? 'Save this scan' : 'Review details'}
+        title={sheetVariant === 'guest' ? 'Save this document' : 'Review details'}
         onClose={() => setSheetVisible(false)}>
         {sheetVariant === 'guest' ? (
           <View style={styles.form}>
             <Text style={[styles.sheetBody, {color: theme.colors.textSecondary}]}>
-              You can share this scan now. Sign in to save it in Maya and unlock
+              You can share this file now. Sign in to save it in Maya and unlock
               search.
             </Text>
           </View>
@@ -390,7 +844,7 @@ const ScanScreen = ({navigation}) => {
                 onPress={() => setSheetVisible(false)}
                 style={{marginTop: 10}}
               />
-              {previewUri ? (
+              {attachment ? (
                 <Text style={[styles.sheetNote, {color: theme.colors.muted}]}>
                   Saved documents appear in Library instantly.
                 </Text>
@@ -465,6 +919,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
+  readyFootnote: {
+    marginTop: 10,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  readyRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
   previewCard: {
     width: '100%',
     borderRadius: 24,
@@ -476,6 +943,35 @@ const styles = StyleSheet.create({
     height: 340,
     borderRadius: 18,
     backgroundColor: '#111',
+  },
+  filePreview: {
+    width: '100%',
+    height: 340,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  fileIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: -0.2,
+    paddingHorizontal: 8,
+  },
+  fileMeta: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   previewHint: {
     marginTop: 10,

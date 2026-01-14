@@ -1,4 +1,8 @@
 .env
+.env.*
+!.env.example
+.chroma_env
+.venv/
 app/core/*.json
 *.pyc
 __pycache__/

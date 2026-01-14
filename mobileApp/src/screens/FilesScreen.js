@@ -1,7 +1,9 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
+  Alert,
   FlatList,
   Image,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -19,6 +21,9 @@ import Button from '../components/ui/Button';
 import {useUser} from '../contexts/UserContext';
 import {useTheme} from '../theme/theme';
 import {buildStorageUrl} from '../utils/storageUrl';
+
+const isPdfPath = filePath =>
+  (filePath || '').toString().toLowerCase().endsWith('.pdf');
 
 const sortByDateDesc = documents => {
   const getTime = d => {
@@ -120,9 +125,17 @@ const FilesScreen = ({navigation}) => {
     }
   }, [fetchBrowse, tab]);
 
-  const openPreview = filePath => {
+  const openPreview = async filePath => {
     const url = buildStorageUrl(filePath);
     if (!url) {
+      return;
+    }
+    if (isPdfPath(filePath) || url.toLowerCase().endsWith('.pdf')) {
+      try {
+        await Linking.openURL(url);
+      } catch (e) {
+        Alert.alert('Open failed', 'Could not open this PDF.');
+      }
       return;
     }
     setPreviewUrl(url);
@@ -190,9 +203,11 @@ const FilesScreen = ({navigation}) => {
   }
 
   const renderRecent = ({item}) => {
+    const filePath = item.file_path;
+    const isPdf = isPdfPath(filePath);
     return (
       <Pressable
-        onPress={() => openPreview(item.file_path)}
+        onPress={() => openPreview(filePath)}
         style={({pressed}) => [
           styles.recentRow,
           {
@@ -201,12 +216,22 @@ const FilesScreen = ({navigation}) => {
             opacity: pressed ? 0.85 : 1,
           },
         ]}>
-        <View style={styles.thumb}>
-          <Image
-            source={{uri: buildStorageUrl(item.file_path)}}
-            style={styles.thumbImage}
-            resizeMode="cover"
-          />
+        <View style={[styles.thumb, {backgroundColor: theme.colors.surface2}]}>
+          {isPdf ? (
+            <View style={styles.thumbPlaceholder}>
+              <Icon
+                name="document-text-outline"
+                size={20}
+                color={theme.colors.accent}
+              />
+            </View>
+          ) : (
+            <Image
+              source={{uri: buildStorageUrl(filePath)}}
+              style={styles.thumbImage}
+              resizeMode="cover"
+            />
+          )}
         </View>
         <View style={{flex: 1}}>
           <Text
@@ -253,9 +278,11 @@ const FilesScreen = ({navigation}) => {
   };
 
   const renderDocThumb = ({item}) => {
+    const filePath = item.file_path;
+    const isPdf = isPdfPath(filePath);
     return (
       <Pressable
-        onPress={() => openPreview(item.file_path)}
+        onPress={() => openPreview(filePath)}
         style={({pressed}) => [styles.gridItem, {opacity: pressed ? 0.85 : 1}]}>
         <View
           style={[
@@ -265,10 +292,31 @@ const FilesScreen = ({navigation}) => {
               borderColor: theme.colors.border,
             },
           ]}>
-          <Image
-            source={{uri: buildStorageUrl(item.file_path)}}
-            style={styles.gridImage}
-          />
+          {isPdf ? (
+            <View
+              style={[
+                styles.gridPlaceholder,
+                {backgroundColor: theme.colors.surface2},
+              ]}>
+              <Icon
+                name="document-text-outline"
+                size={26}
+                color={theme.colors.accent}
+              />
+              <Text
+                style={[
+                  styles.gridPlaceholderText,
+                  {color: theme.colors.textSecondary},
+                ]}>
+                PDF
+              </Text>
+            </View>
+          ) : (
+            <Image
+              source={{uri: buildStorageUrl(filePath)}}
+              style={styles.gridImage}
+            />
+          )}
           <View style={styles.gridMeta}>
             <Text
               style={[styles.gridDate, {color: theme.colors.textSecondary}]}
@@ -518,6 +566,11 @@ const FilesScreen = ({navigation}) => {
     width: '100%',
     height: '100%',
   },
+  thumbPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rowTitle: {
     fontSize: 16,
     fontWeight: '900',
@@ -563,6 +616,18 @@ const FilesScreen = ({navigation}) => {
     width: '100%',
     height: 160,
     backgroundColor: '#111',
+  },
+  gridPlaceholder: {
+    width: '100%',
+    height: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  gridPlaceholderText: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.2,
   },
   gridMeta: {
     paddingHorizontal: 10,
